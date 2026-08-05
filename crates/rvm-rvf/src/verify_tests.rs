@@ -260,6 +260,22 @@ fn an_unsupported_capability_class_is_witnessed_and_then_refused() {
 }
 
 #[test]
+fn an_unknown_capability_name_is_witnessed_and_refused() {
+    let data = crate::testkit::minimal_container("network,teleportation");
+    let report = verify(&data, &VerifyOptions::default()).unwrap();
+
+    let capability = record_for(&report, CheckKind::CapabilityMapping);
+    assert_eq!(capability.outcome, Outcome::Fail);
+    assert_eq!(capability.detail, DetailCode::CapabilityUnknown);
+    assert!(!report.ok);
+    assert!(report.capabilities.granted().is_empty());
+    assert_eq!(
+        report.into_result(),
+        Err(crate::RvfError::UnknownCapability)
+    );
+}
+
+#[test]
 fn a_malformed_container_is_an_error_not_a_report() {
     let junk = vec![b'x'; 128];
     assert_eq!(
@@ -328,6 +344,7 @@ fn detail_codes_all_render() {
         DetailCode::ExceedsSizePolicy,
         DetailCode::CapabilitiesMapped,
         DetailCode::CapabilityUnsupported,
+        DetailCode::CapabilityUnknown,
     ];
     for code in codes {
         let mut s = alloc::string::String::new();

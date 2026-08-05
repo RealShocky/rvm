@@ -14,7 +14,9 @@
 //! **Nothing here executes anything.** The only bytes read from an executable
 //! segment are read to hash them (ADR-284 §1.7).
 
-use crate::capability::{declared_classes, map_declared, CapabilityMapping};
+use crate::capability::{
+    declared_classes, has_unknown_class_name, map_declared, CapabilityMapping,
+};
 use crate::container::{root_manifest, walk, ParsedSegment};
 use crate::detail::DetailCode;
 use crate::error::{RvfError, RvfResult};
@@ -133,6 +135,12 @@ impl VerificationReport {
             return Ok(self);
         }
         if self.first_failure(CheckKind::CapabilityMapping).is_some() {
+            if self.records.iter().any(|record| {
+                record.check == CheckKind::CapabilityMapping
+                    && record.detail == DetailCode::CapabilityUnknown
+            }) {
+                return Err(RvfError::UnknownCapability);
+            }
             // The specific class is already in the record set; report the
             // first declared class RVM cannot represent.
             let class = crate::capability::CapabilityClass::ALL
@@ -313,6 +321,16 @@ fn capability_records(
     data: &[u8],
     segments: &[ParsedSegment],
 ) -> (CapabilityMapping, VerificationRecord) {
+    if has_unknown_class_name(data, segments) {
+        return (
+            map_declared(&[]).unwrap_or_else(|_| unreachable!("the empty declaration always maps")),
+            container_record(
+                CheckKind::CapabilityMapping,
+                Outcome::Fail,
+                DetailCode::CapabilityUnknown,
+            ),
+        );
+    }
     let declared = declared_classes(data, segments);
     match map_declared(&declared) {
         Ok(mapping) => (

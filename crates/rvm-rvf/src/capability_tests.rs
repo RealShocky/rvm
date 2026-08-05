@@ -45,10 +45,14 @@ fn declared_classes_are_read_from_meta() {
 }
 
 #[test]
-fn unknown_class_names_are_skipped_not_granted() {
-    let mapping = map("network,teleportation").unwrap();
-    assert!(mapping.is_granted(CapabilityClass::Network));
-    assert_eq!(mapping.granted().len(), 1);
+fn unknown_class_names_are_detected_for_verification() {
+    let data = testkit::minimal_container("network,teleportation");
+    let segs = walk(&data).unwrap();
+    assert!(has_unknown_class_name(&data, &segs));
+
+    let data = testkit::minimal_container(" network, filesystem, ");
+    let segs = walk(&data).unwrap();
+    assert!(!has_unknown_class_name(&data, &segs));
 }
 
 #[test]

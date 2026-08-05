@@ -44,6 +44,8 @@ pub enum DetailCode {
     CapabilitiesMapped,
     /// A declared class is one RVM cannot represent.
     CapabilityUnsupported,
+    /// A declared capability name is unknown to this RVM version.
+    CapabilityUnknown,
 }
 
 impl fmt::Display for DetailCode {
@@ -67,6 +69,7 @@ impl fmt::Display for DetailCode {
             Self::ExceedsSizePolicy => "container exceeds a policy limit",
             Self::CapabilitiesMapped => "declared capability classes mapped into rvm-cap",
             Self::CapabilityUnsupported => "declared capability class is unrepresentable",
+            Self::CapabilityUnknown => "declared capability class name is unknown",
         };
         f.write_str(s)
     }

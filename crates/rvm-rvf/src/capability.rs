@@ -352,6 +352,29 @@ pub fn declared_classes(data: &[u8], segments: &[ParsedSegment]) -> Vec<Capabili
     found
 }
 
+/// Whether a plaintext capability declaration contains a non-empty name that
+/// this RVM version does not understand.
+pub(crate) fn has_unknown_class_name(data: &[u8], segments: &[ParsedSegment]) -> bool {
+    segments.iter().any(|seg| {
+        if seg.header.seg_type != SEG_TYPE_META || seg.header.is_encrypted() {
+            return false;
+        }
+        let Ok(text) = core::str::from_utf8(seg.payload(data)) else {
+            return false;
+        };
+        text.lines().any(|line| {
+            line.strip_prefix(CAPABILITY_DECLARATION_KEY)
+                .and_then(|rest| rest.strip_prefix('='))
+                .is_some_and(|value| {
+                    value.split(',').any(|name| {
+                        let name = name.trim();
+                        !name.is_empty() && CapabilityClass::from_wire(name).is_none()
+                    })
+                })
+        })
+    })
+}
+
 #[cfg(test)]
 #[path = "capability_tests.rs"]
 mod tests;
