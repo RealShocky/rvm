@@ -305,6 +305,16 @@ pub enum ActionKind {
     VmidReclaim = 0xA0,
     /// Migration timed out and was aborted (DC-7).
     MigrationTimeout = 0xA1,
+
+    // --- External anchoring (0xB0-0xBF) ---
+    /// A commitment to an external, service-side record (e.g. a ruflo
+    /// ADR-322C evaluation receipt) was anchored into the witness chain
+    /// after independent verification (ADR-156).
+    ///
+    /// Anchoring records provenance only: the anchored record keeps the
+    /// assurance level it was produced under and does not acquire the
+    /// witness chain's guarantees (ADR-285 discipline).
+    AnchorExternalReceipt = 0xB0,
 }
 
 impl ActionKind {
@@ -313,7 +323,8 @@ impl ActionKind {
     /// Useful for filtering audit queries by subsystem:
     /// 0 = partition, 1 = capability, 2 = memory, 3 = communication,
     /// 4 = device, 5 = proof, 6 = scheduler, 7 = recovery,
-    /// 8 = boot, 9 = graph, 0xA = VMID management.
+    /// 8 = boot, 9 = graph, 0xA = VMID management,
+    /// 0xB = external anchoring.
     #[must_use]
     pub const fn subsystem(self) -> u8 {
         (self as u8) >> 4
