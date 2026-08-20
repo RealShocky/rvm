@@ -1,0 +1,31 @@
+[package]
+name = "rvm-anchor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Cross-repo receipt anchoring: verify a ruflo ADR-322C evaluation receipt and anchor a commitment to it into the RVM witness chain (ADR-156)"
+keywords = ["witness", "anchoring", "receipt", "no_std", "verification"]
+categories = ["no-std", "embedded", "os"]
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+rvm-types = { workspace = true }
+rvm-witness = { workspace = true }
+sha2 = { workspace = true }
+ed25519-dalek = { version = "2.1", default-features = false }
+
+[dev-dependencies]
+
+[features]
+default = []
+std = [
+    "rvm-types/std",
+    "rvm-witness/std",
+    "sha2/std",
+    "ed25519-dalek/std",
+]

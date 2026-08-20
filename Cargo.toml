@@ -12,6 +12,7 @@ members = [
     "crates/rvm-boot",
     "crates/rvm-wasm",
     "crates/rvm-rvf",
+    "crates/rvm-anchor",
     "crates/rvm-security",
     "crates/rvm-host",
     "crates/rvm-launch",
