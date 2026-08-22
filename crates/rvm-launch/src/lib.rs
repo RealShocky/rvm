@@ -87,6 +87,7 @@ extern crate alloc;
 extern crate std;
 
 pub mod checkpoint;
+pub mod context;
 pub mod error;
 pub mod inspect;
 pub mod instance;
@@ -94,6 +95,7 @@ pub mod state;
 pub mod witness;
 
 pub use checkpoint::Checkpoint;
+pub use context::ContextLaunchAuthorization;
 pub use error::{LaunchError, LaunchResult};
 pub use inspect::{inspect, verify, Inspection, SegmentSummary};
 pub use instance::Instance;

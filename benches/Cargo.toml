@@ -2,7 +2,7 @@
 name = "rvm-benches"
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+rust-version = "1.85"
 license.workspace = true
 authors.workspace = true
 publish = false
@@ -17,8 +17,10 @@ rvm-memory = { workspace = true }
 rvm-proof = { workspace = true }
 rvm-security = { workspace = true }
 rvm-context = { workspace = true }
+rvm-context-service = { workspace = true }
 rvm-gpu = { workspace = true }
 criterion = { workspace = true }
+tempfile = "=3.27.0"
 
 [[bench]]
 name = "coherence"
@@ -38,4 +40,8 @@ harness = false
 
 [[bench]]
 name = "context"
+harness = false
+
+[[bench]]
+name = "context_service"
 harness = false

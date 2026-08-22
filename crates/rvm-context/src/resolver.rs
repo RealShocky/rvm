@@ -50,7 +50,12 @@ impl AliasGeneration {
         self.0
     }
 
-    fn next(self) -> ContextResult<Self> {
+    /// Advance the anti-ABA generation without wrapping.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ContextError::AliasGenerationExhausted`] at `u64::MAX`.
+    pub fn checked_next(self) -> ContextResult<Self> {
         self.0
             .checked_add(1)
             .map(Self)
@@ -68,6 +73,28 @@ pub struct AliasSnapshot {
 }
 
 impl AliasSnapshot {
+    /// Construct validated durable alias state.
+    ///
+    /// # Errors
+    ///
+    /// Refuses pinned aliases and view-qualified aliases.
+    pub fn new(
+        alias: RuvUri,
+        revision: Revision,
+        generation: AliasGeneration,
+        tombstone: bool,
+    ) -> ContextResult<Self> {
+        if alias.is_pinned() || alias.view().is_some() {
+            return Err(ContextError::VersionlessUriRequired);
+        }
+        Ok(Self {
+            alias,
+            revision,
+            generation,
+            tombstone,
+        })
+    }
+
     /// Return the canonical versionless alias.
     #[must_use]
     pub const fn alias(&self) -> &RuvUri {
@@ -103,6 +130,33 @@ pub struct ResolvedContext {
 }
 
 impl ResolvedContext {
+    /// Construct metadata for a verified immutable object.
+    ///
+    /// # Errors
+    ///
+    /// Refuses a pinned URI whose revision differs from `revision`, or alias
+    /// metadata naming a different logical object.
+    pub fn new(
+        pinned_uri: PinnedRuvUri,
+        revision: Revision,
+        alias: Option<AliasSnapshot>,
+        rvf_len: usize,
+    ) -> ContextResult<Self> {
+        if pinned_uri.revision() != revision
+            || alias
+                .as_ref()
+                .is_some_and(|snapshot| !same_logical_name(snapshot.alias(), pinned_uri.as_uri()))
+        {
+            return Err(ContextError::InvalidTarget);
+        }
+        Ok(Self {
+            pinned_uri,
+            revision,
+            alias,
+            rvf_len,
+        })
+    }
+
     /// Return the immutable URI suitable for citations and receipts.
     #[must_use]
     pub const fn pinned_uri(&self) -> &PinnedRuvUri {
@@ -138,6 +192,28 @@ pub struct ContextHit {
 }
 
 impl ContextHit {
+    /// Construct one bounded retrieval result.
+    ///
+    /// # Errors
+    ///
+    /// Refuses a URI/revision mismatch or a zero score.
+    pub fn new(
+        pinned_uri: PinnedRuvUri,
+        revision: Revision,
+        score: u32,
+        alias_generation: Option<AliasGeneration>,
+    ) -> ContextResult<Self> {
+        if pinned_uri.revision() != revision || score == 0 {
+            return Err(ContextError::InvalidTarget);
+        }
+        Ok(Self {
+            pinned_uri,
+            revision,
+            score,
+            alias_generation,
+        })
+    }
+
     /// Return the immutable result URI.
     #[must_use]
     pub const fn pinned_uri(&self) -> &PinnedRuvUri {
@@ -764,7 +840,7 @@ impl<const OBJECTS: usize, const ALIASES: usize> ContextResolver
             if expected != Some(current) {
                 return Err(ContextError::AliasConflict);
             }
-            let generation = current.generation.next()?;
+            let generation = current.generation.checked_next()?;
             let snapshot = AliasSnapshot {
                 alias: request.target().clone(),
                 revision: next_revision,
@@ -812,7 +888,7 @@ impl<const OBJECTS: usize, const ALIASES: usize> ContextResolver
         if &current != expected {
             return Err(ContextError::AliasConflict);
         }
-        let generation = current.generation.next()?;
+        let generation = current.generation.checked_next()?;
         let tombstone_revision = self.insert_tombstone(request.target(), expected, generation)?;
 
         // Make every prior revision of this logical object unreachable while

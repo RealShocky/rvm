@@ -17,6 +17,7 @@ members = [
     "crates/rvm-host",
     "crates/rvm-launch",
     "crates/rvm-context",
+    "crates/rvm-context-service",
     "crates/rvm-gpu",
     "crates/rvm-kernel",
     "tests",
@@ -55,6 +56,7 @@ rvm-rvf = { path = "crates/rvm-rvf" }
 rvm-host = { path = "crates/rvm-host" }
 rvm-launch = { path = "crates/rvm-launch" }
 rvm-context = { path = "crates/rvm-context" }
+rvm-context-service = { path = "crates/rvm-context-service" }
 rvm-security = { path = "crates/rvm-security" }
 rvm-kernel = { path = "crates/rvm-kernel" }
 rvm-gpu = { path = "crates/rvm-gpu" }

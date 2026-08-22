@@ -19,6 +19,7 @@ rvm-witness = { workspace = true }
 rvm-wasm = { workspace = true }
 rvm-rvf = { workspace = true }
 rvm-host = { workspace = true }
+rvm-context = { workspace = true }
 
 [dev-dependencies]
 rvm-host = { workspace = true, features = ["testkit"] }
@@ -31,4 +32,5 @@ std = [
     "rvm-wasm/std",
     "rvm-rvf/std",
     "rvm-host/std",
+    "rvm-context/std",
 ]

@@ -24,6 +24,7 @@ use rvm_wasm::agent::{AgentId, AgentManager};
 use rvm_witness::WitnessLog;
 
 use crate::checkpoint::Checkpoint;
+use crate::context::ContextLaunchAuthorization;
 use crate::error::{LaunchError, LaunchResult};
 use crate::state::{is_legal, InstanceId, InstanceState, LifecycleOp};
 use crate::witness::{emit, emit_illegal, LaunchEvent, LaunchWitnessContext};
@@ -42,6 +43,7 @@ pub struct Instance<A: HostAdapter> {
     agent: Option<AgentId>,
     checkpoints: u32,
     ranges: Vec<SeqRange>,
+    context_authorization: Option<ContextLaunchAuthorization>,
 }
 
 impl<A: HostAdapter> Instance<A> {
@@ -91,6 +93,7 @@ impl<A: HostAdapter> Instance<A> {
             agent: None,
             checkpoints: 0,
             ranges: alloc::vec![(start, log.total_emitted())],
+            context_authorization: None,
         })
     }
 
@@ -117,6 +120,19 @@ impl<A: HostAdapter> Instance<A> {
     #[must_use]
     pub const fn package(&self) -> &VerifiedPackage {
         &self.package
+    }
+
+    /// Governed context authorization consumed during creation, when present.
+    #[must_use]
+    pub const fn context_authorization(&self) -> Option<&ContextLaunchAuthorization> {
+        self.context_authorization.as_ref()
+    }
+
+    pub(crate) fn attach_context_authorization(
+        &mut self,
+        authorization: ContextLaunchAuthorization,
+    ) {
+        self.context_authorization = Some(authorization);
     }
 
     /// The adapter providing the boundary.
@@ -446,3 +462,7 @@ mod tests;
 #[cfg(test)]
 #[path = "instance_lineage_tests.rs"]
 mod lineage_tests;
+
+#[cfg(test)]
+#[path = "instance_context_tests.rs"]
+mod context_tests;

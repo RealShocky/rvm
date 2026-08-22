@@ -160,7 +160,7 @@ pub extern "C" fn rvm_main(_dtb_ptr: u64) -> ! {
 /// Bare-metal panic handler -- prints to UART and halts.
 ///
 /// Only compiled when not under the test harness (which provides its own).
-#[cfg(not(test))]
+#[cfg(all(not(test), target_os = "none"))]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     #[cfg(target_arch = "aarch64")]
