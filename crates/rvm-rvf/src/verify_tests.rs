@@ -142,7 +142,7 @@ fn a_tampered_signed_payload_fails_both_hash_and_signature() {
 }
 
 #[test]
-fn a_signature_is_skipped_not_passed_when_no_key_is_trusted() {
+fn a_signed_executable_is_refused_when_no_key_is_trusted() {
     let kp = TestKeypair::deterministic(7);
     let mut data = manifest_only();
     data.extend(signed_segment(SEG_TYPE_WASM, b"\0asm", 5, &kp));
@@ -152,8 +152,29 @@ fn a_signature_is_skipped_not_passed_when_no_key_is_trusted() {
         record_for(&report, CheckKind::Signature).detail,
         DetailCode::NoTrustedKey
     );
-    // A skip is not a failure, and the executable is signed, so this passes.
-    assert!(report.ok, "{:?}", report.failures());
+    assert_eq!(
+        record_for(&report, CheckKind::Signature).outcome,
+        Outcome::Fail
+    );
+    assert!(!report.ok);
+}
+
+#[test]
+fn an_unsupported_executable_signature_algorithm_is_refused() {
+    let kp = TestKeypair::deterministic(7);
+    let mut data = manifest_only();
+    data.extend(signed_segment(SEG_TYPE_WASM, b"\0asm", 5, &kp));
+
+    // The root manifest occupies the first 128 bytes. The executable payload
+    // starts at 192 and is four bytes long, so its footer algorithm begins at
+    // byte 196. Changing the footer does not change the payload content hash.
+    data[196..198].copy_from_slice(&99u16.to_le_bytes());
+    let report = verify(&data, &VerifyOptions::with_trusted_keys(vec![kp.public])).unwrap();
+
+    let signature = record_for(&report, CheckKind::Signature);
+    assert_eq!(signature.outcome, Outcome::Fail);
+    assert_eq!(signature.detail, DetailCode::UnsupportedSignatureAlgorithm);
+    assert!(!report.ok);
 }
 
 #[test]

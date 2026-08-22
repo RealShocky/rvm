@@ -1,13 +1,13 @@
 [package]
-name = "rvm-rvf"
+name = "rvm-context"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "RVF execution contract for RVM: verify-before-load, capability mapping, witnessed results (ADR-284, ADR-286)"
-keywords = ["rvf", "hypervisor", "capability", "no_std", "verification"]
+description = "Capability-gated ruv context namespace for RVM"
+keywords = ["context", "capability", "rvf", "no_std"]
 categories = ["no-std", "embedded", "os"]
 
 [lib]
@@ -17,13 +17,14 @@ crate-type = ["rlib"]
 rvm-types = { workspace = true }
 rvm-cap = { workspace = true }
 rvm-witness = { workspace = true }
+rvm-proof = { workspace = true }
+rvm-rvf = { workspace = true }
 sha2 = { workspace = true }
 sha3 = { workspace = true }
-subtle = { workspace = true }
-xxhash-rust = { workspace = true }
-ed25519-dalek = { version = "=2.1.1", default-features = false }
 
 [dev-dependencies]
+ed25519-dalek = { version = "=2.1.1", default-features = false }
+proptest = { workspace = true }
 
 [features]
 default = []
@@ -31,8 +32,6 @@ std = [
     "rvm-types/std",
     "rvm-cap/std",
     "rvm-witness/std",
-    "sha2/std",
-    "sha3/std",
-    "subtle/std",
-    "ed25519-dalek/std",
+    "rvm-proof/std",
+    "rvm-rvf/std",
 ]

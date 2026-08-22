@@ -129,9 +129,7 @@ impl<const MAX_DELTAS: usize> ReconstructionPipeline<MAX_DELTAS> {
 
     /// Clear all buffered deltas.
     pub fn clear(&mut self) {
-        for slot in &mut self.deltas {
-            *slot = None;
-        }
+        self.deltas.fill(None);
         self.delta_count = 0;
     }
 

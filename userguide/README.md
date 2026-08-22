@@ -12,7 +12,7 @@ Choose a path based on your goals:
 |------|-----------|----------------|
 | **Quick Start** | [01 -- Quick Start](01-quickstart.md) | Clone, build, boot in QEMU, and run your first partition in 5 minutes |
 | **Deep Dive** | [02 -- Core Concepts](02-core-concepts.md) then [03 -- Architecture](03-architecture.md) | How RVM thinks, why it exists, and how the pieces fit together |
-| **Reference** | [04 -- Crate Reference](04-crate-reference.md) then [15 -- Glossary](15-glossary.md) | API surface, type catalog, and precise definitions |
+| **Reference** | [04 -- Crate Reference](04-crate-reference.md), [16 -- Governed `ruv://` Context](16-ruv-context.md), then [15 -- Glossary](15-glossary.md) | API surface, governed context names, and precise definitions |
 
 Every chapter ends with cross-reference links to related sections. If you prefer to navigate by topic rather than chapter order, use the [Cross-Reference Index](cross-reference.md).
 
@@ -38,13 +38,14 @@ Every chapter ends with cross-reference links to related sections. If you prefer
 | 13 | [Advanced and Exotic](13-advanced-exotic.md) | Seed profile (64 KB), Appliance deployment, Chip targets, RuVector integration |
 | 14 | [Troubleshooting](14-troubleshooting.md) | Common build errors, QEMU issues, debugging tips, and FAQ |
 | 15 | [Glossary](15-glossary.md) | Precise definitions for every RVM-specific term |
+| 16 | [Governed `ruv://` Context](16-ruv-context.md) | Canonical context names, immutable RVF revisions, capability scopes, CAS aliases, progressive views, and epoch receipts |
 | -- | [Cross-Reference Index](cross-reference.md) | Topic-to-chapter mapping for quick navigation |
 
 ---
 
 ## Key Concepts at a Glance
 
-> **Six ideas that make RVM different from every other hypervisor.**
+> **Seven ideas that define RVM's model.**
 
 - **Coherence Domains** -- Partitions are not VMs. They have no emulated hardware. A partition is a graph-structured container whose boundaries shift dynamically based on agent communication patterns. See [Core Concepts](02-core-concepts.md).
 
@@ -57,6 +58,8 @@ Every chapter ends with cross-reference links to related sections. If you prefer
 - **Memory Tiers** -- Memory lives in four explicit tiers (Hot, Warm, Dormant, Cold) instead of a demand-paging black box. Dormant memory is stored as a checkpoint plus delta-compressed witness trail and can be reconstructed days later. See [Memory Model](08-memory-model.md).
 
 - **Partitions** -- The unit of scheduling, isolation, migration, and fault containment. Partitions can split along graph-theoretic mincut boundaries when coupling drops, and merge when coherence rises. Every lifecycle transition is witnessed. See [Partitions and Scheduling](07-partitions-scheduling.md).
+
+- **Governed Context** -- Canonical `ruv://` names identify resources, memories, and skills, while live RVM capabilities independently authorize each operation. Pinned names bind complete RVF bytes; aliases advance through compare-and-swap. See [Governed `ruv://` Context](16-ruv-context.md).
 
 ---
 
@@ -99,5 +102,5 @@ All RVM crates are `#![no_std]` and `#![forbid(unsafe_code)]` by default. No C t
 
 - **Repository**: <https://github.com/ruvnet/rvm>
 - **License**: MIT OR Apache-2.0
-- **ADR References**: ADR-132 through ADR-142
+- **Architecture decisions**: [`docs/adr/`](../docs/adr/)
 - **Start building**: [Quick Start](01-quickstart.md)

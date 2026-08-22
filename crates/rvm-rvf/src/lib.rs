@@ -113,7 +113,7 @@ pub use error::{RvfError, RvfResult};
 pub use format::{
     is_executable, SegmentClass, SegmentHeader, SignatureFooter, EXECUTABLE_SEGMENT_TYPES,
     MAX_SEGMENT_PAYLOAD, SEGMENT_ALIGNMENT, SEGMENT_HEADER_SIZE, SEGMENT_MAGIC,
-    SEGMENT_MAGIC_BYTES, SEGMENT_VERSION,
+    SEGMENT_MAGIC_BYTES, SEGMENT_VERSION, SEG_TYPE_PROFILE, SEG_TYPE_WITNESS,
 };
 pub use hash::{content_hash, sha256, verify_content_hash};
 pub use policy::{tally, SizePolicy, SizeTally, SizeViolation};

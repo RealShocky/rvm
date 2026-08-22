@@ -36,8 +36,13 @@ evaluation. Defined in `rvm-types::capability`. See [Capabilities and
 Proofs](05-capabilities-proofs.md).
 
 **CapType** -- The kind of kernel object a capability authorizes access to:
-`Partition`, `Region`, `Device`, `CommEdge`, `Witness`. See [Capabilities and
-Proofs](05-capabilities-proofs.md).
+`Partition`, `Region`, `Device`, `CommEdge`, `Witness`, `Proof`, `Vcpu`,
+`Coherence`, and `Context`. See [Capabilities and Proofs](05-capabilities-proofs.md).
+
+**Context Capability** -- A live `CapType::Context` capability paired with a
+trusted binding to an exact `ruv://` authority, tenant, subject, collection,
+path-segment prefix, and progressive-view mask. A context URI is only a name;
+the capability is the authority. See [Governed ruv Context](16-ruv-context.md).
 
 **Coherence** -- A measure of how tightly coupled a partition is to its
 communication neighbors. Derived from the weighted communication graph.

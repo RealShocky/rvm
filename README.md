@@ -3,17 +3,17 @@
 [![Rust](https://img.shields.io/badge/Rust-1.77+-orange.svg)](https://www.rust-lang.org)
 [![no_std](https://img.shields.io/badge/no__std-compatible-green.svg)](https://doc.rust-lang.org/reference/names/preludes.html)
 [![License](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
-[![ADR](https://img.shields.io/badge/ADRs-132--144-purple.svg)](docs/adr/)
-[![Tests](https://img.shields.io/badge/tests-945_passing-brightgreen.svg)](https://github.com/ruvnet/rvm)
+[![ADR](https://img.shields.io/badge/ADRs-index-purple.svg)](docs/adr/)
+[![Tests](https://img.shields.io/badge/tests-see_CI-informational.svg)](https://github.com/ruvnet/rvm/actions)
 [![GPU](https://img.shields.io/badge/GPU-CUDA%20%7C%20Metal%20%7C%20WebGPU-blue.svg)](docs/adr/ADR-144-gpu-compute-support.md)
-[![Nightly](https://img.shields.io/badge/Nightly-Verified%20Releases-brightgreen.svg)](https://github.com/ruvnet/rvm/releases)
+[![Nightly](https://img.shields.io/badge/Nightly-Releases-informational.svg)](https://github.com/ruvnet/rvm/releases)
 [![EPIC](https://img.shields.io/badge/EPIC-ruvnet%2FRuVector%23328-brightgreen.svg)](https://github.com/ruvnet/RuVector/issues/328)
 
 ### **Agents don't fit in VMs. They need something that understands how they think.**
 
-> **945 tests. 15 crates. 6 GPU backends. Zero regressions.** RVM automatically detects new [Claude Code](https://www.npmjs.com/package/@anthropic-ai/claude-code) releases, runs full verification with AI-powered discovery analysis, and publishes verified nightly builds. See [Releases](https://github.com/ruvnet/rvm/releases) | [User Guide](userguide/) | [pi.ruv.io](https://pi.ruv.io)
+> **19 runtime and library crates, plus integration and benchmark packages.** RVM automatically detects new [Claude Code](https://www.npmjs.com/package/@anthropic-ai/claude-code) releases, runs its release workflow, and publishes nightly builds. See [Releases](https://github.com/ruvnet/rvm/releases) | [User Guide](userguide/) | [pi.ruv.io](https://pi.ruv.io)
 
-> Part of the [RuVector](https://github.com/ruvnet/RuVector) ecosystem. Uses [RuVix](../../crates/ruvix/) kernel primitives and [RVF](../../crates/rvf/) package format. Designed for [Cognitum](https://cognitum.one) Seed, Appliance, and future chip targets.
+> Part of the [RuVector](https://github.com/ruvnet/RuVector) ecosystem. Uses [RuVix](ruvector/crates/ruvix/) kernel primitives and [RVF](ruvector/crates/rvf/) package format. Designed for [Cognitum](https://cognitum.one) Seed, Appliance, and future chip targets.
 
 Traditional hypervisors were built for an era of static server workloads —
 long-running VMs with predictable resource needs. AI agents are different.
@@ -181,8 +181,10 @@ Layer 0: Machine Entry (assembly, <500 LoC)
 | `rvm-kernel` | Full integration: coherence engine, IPC→graph feeding, scheduler, split/merge, security gates, tier management |
 | `rvm-gpu` | GPU compute subsystem: device, context, kernel, buffer, queue, budget (optional, feature-gated) |
 | `rvm-rvf` | RVF loader for RVForge packages: manifest verification, per-segment verification, capability mapping, identity preservation ([ADR-155](docs/adr/ADR-155-rvf-execution-contract.md)) |
+| `rvm-anchor` | Verifies external evaluation receipts and anchors their commitments into the RVM witness chain ([ADR-156](docs/adr/ADR-156-external-receipt-anchoring.md)) |
 | `rvm-host` | Per-OS adapters and isolation mechanisms: picks the strongest available isolation, places the agent, spawns it |
 | `rvm-launch` | Instance lifecycle over the adapters: `inspect`, `verify`, run, suspend, resume, checkpoint, witness, terminate ([ADR-289](https://github.com/ruvnet/RuVector/tree/main/docs/adr)) |
+| `rvm-context` | Capability-governed `ruv://` names, immutable RVF revisions, CAS aliases, progressive views, and epoch receipts ([ADR-157](docs/adr/ADR-157-ruv-context-namespace.md)) |
 
 ### Dependency Graph
 
@@ -194,12 +196,20 @@ rvm-types (foundation, no deps)
     ├── rvm-proof ← rvm-cap + rvm-witness
     ├── rvm-partition ← rvm-hal + rvm-cap + rvm-witness
     ├── rvm-sched ← rvm-partition + rvm-witness
-    ├── rvm-memory ← rvm-hal + rvm-partition + rvm-witness
+    ├── rvm-memory
     ├── rvm-coherence ← rvm-partition + rvm-sched [OPTIONAL]
     ├── rvm-boot ← rvm-hal + rvm-partition + rvm-witness + rvm-sched + rvm-memory
     ├── rvm-wasm ← rvm-partition + rvm-cap + rvm-witness [OPTIONAL]
-    ├── rvm-security ← rvm-cap + rvm-proof + rvm-witness
-    └── rvm-kernel ← ALL
+    ├── rvm-security ← rvm-witness
+    ├── rvm-gpu
+    ├── rvm-rvf ← rvm-cap + rvm-witness
+    ├── rvm-anchor ← rvm-witness
+    ├── rvm-host ← rvm-cap + rvm-witness + rvm-partition + rvm-wasm + rvm-rvf
+    ├── rvm-launch ← rvm-witness + rvm-wasm + rvm-rvf + rvm-host
+    ├── rvm-context ← rvm-cap + rvm-witness + rvm-proof + rvm-rvf
+    └── rvm-kernel ← rvm-hal + rvm-cap + rvm-witness + rvm-proof +
+                     rvm-partition + rvm-sched + rvm-memory + rvm-coherence +
+                     rvm-boot + rvm-wasm + rvm-security + rvm-gpu
 ```
 
 ---
@@ -210,10 +220,10 @@ rvm-types (foundation, no deps)
 # Check (no_std by default)
 cargo check
 
-# Run all 945 tests
+# Run workspace library tests
 cargo test --workspace --lib
 
-# Run 21 criterion benchmarks
+# Run Criterion benchmarks
 cargo bench
 
 # Build with std support
@@ -274,6 +284,11 @@ Run `cargo bench` for full criterion results with HTML reports.
 
 ## Implementation Status
 
+The numeric counts below are the repository's legacy documented snapshot, not
+release evidence for this change. Newer crates are listed without invented
+counts; use the current CI run for authoritative test results. ADR-157 keeps
+its acceptance evidence marked planned until that run is attached.
+
 | Crate | Tests | Key Features |
 |-------|-------|-------------|
 | `rvm-types` | ~40 types | 64-byte `WitnessRecord` (compile-time asserted), ~40 `ActionKind` variants, 34 error variants |
@@ -287,12 +302,17 @@ Run `cargo bench` for full criterion results with HTML reports.
 | `rvm-coherence` | 59 | Unified coherence engine, pluggable MinCut/Coherence backends, edge decay, bridge to ruvector |
 | `rvm-boot` | 26 | 7-phase measured boot, attestation digest, HAL init, entry point |
 | `rvm-wasm` | 33 | 7-state agent lifecycle, `HostContext` trait, section parser (13 section types), migration |
+| `rvm-rvf` | — | Full-container identity, structural and segment checks, capability mapping, verified-package boundary |
+| `rvm-anchor` | — | External receipt verification and domain-separated witness anchoring |
 | `rvm-security` | 45 | Unified security gate (P1/P2/P3), `SignedSecurityGate` with per-link signature verification, input validation, attestation chain, DMA budget |
+| `rvm-host` | — | Isolation selection and placement for verified RVF packages |
+| `rvm-launch` | — | Verified instance lifecycle, checkpoint lineage, and witnessed refusals |
+| `rvm-context` | — | Strict `ruv://` parser, live capability scopes, immutable RVF objects, CAS aliases, views, and epoch receipts |
 | `rvm-kernel` | 62 | Full integration: IPC→coherence, scheduler, split/merge, security gates, degraded mode, device leases, tier mgmt |
 | `rvm-gpu` | 65 | Device/context/kernel/buffer/queue management, 4-dimensional budget, coherence acceleration configs |
 | **Integration** | 48 | 17 e2e scenarios: agent lifecycle, split pressure, memory tiers, cap chain, boot timing |
 | **Benchmarks** | 21 | Criterion benchmarks for all performance-critical paths |
-| **Total** | **945** | **0 failures, 0 clippy warnings** |
+| **Legacy documented total** | **945** | **Excludes rows marked —; consult current CI for pass/fail evidence** |
 
 ### Security Audit Results
 
@@ -362,7 +382,7 @@ Capability-based isolation, proof-gated execution, and witness attestation on mi
 
 | # | Criterion | Target |
 |---|-----------|--------|
-| 1 | All 13 crates compile with `#![no_std]` and `#![forbid(unsafe_code)]` | Enforced |
+| 1 | Workspace runtime crates preserve their declared `no_std` and safe-Rust policies | CI gate |
 | 2 | Cold boot to first witness | < 250ms on Appliance hardware |
 | 3 | Hot partition switch | < 10 microseconds |
 | 4 | Witness record is exactly 64 bytes, cache-line aligned | Compile-time asserted |
@@ -581,10 +601,10 @@ brew install qemu  # macOS
 ```bash
 # 1. Clone and verify (--recurse-submodules pulls ruvector + rudevolution)
 git clone --recurse-submodules https://github.com/ruvnet/rvm.git && cd rvm
-cargo test --workspace --lib    # 945 tests, 0 failures
+cargo test --workspace --lib    # Run the current workspace library suite
 
 # 2. Run benchmarks
-cargo bench -p rvm-benches      # 11 criterion benchmarks
+cargo bench -p rvm-benches      # Criterion benchmark suite
 
 # 3. Build for bare metal
 rustup target add aarch64-unknown-none
@@ -608,25 +628,27 @@ use rvm_kernel::{
 
 ### Full User Guide
 
-The [`userguide/`](userguide/) directory contains 17 chapters covering every subsystem:
+The [`userguide/`](userguide/) directory contains 16 numbered chapters covering
+the kernel, artifact, and governed-context subsystems:
 
 | Chapter | Topic |
 |---------|-------|
 | [01 Quick Start](userguide/01-quickstart.md) | Build, test, and boot in 5 minutes |
 | [02 Core Concepts](userguide/02-core-concepts.md) | Partitions, capabilities, witnesses, proofs, coherence |
 | [03 Architecture](userguide/03-architecture.md) | Layer diagram, data flow, boot sequence, feature flags |
-| [04 Crate Reference](userguide/04-crate-reference.md) | All 13 crates with types, APIs, and dependencies |
+| [04 Crate Reference](userguide/04-crate-reference.md) | Workspace crate types, APIs, and dependencies |
 | [05 Capabilities & Proofs](userguide/05-capabilities-proofs.md) | 7 rights, delegation trees, 3 proof tiers, TEE |
 | [06 Witness & Audit](userguide/06-witness-audit.md) | 64-byte records, hash chains, signing, querying |
 | [07 Partitions & Scheduling](userguide/07-partitions-scheduling.md) | Lifecycle, IPC, split/merge, 2-signal scheduler |
 | [08 Memory Model](userguide/08-memory-model.md) | 4 tiers, buddy allocator, reconstruction |
 | [09 WASM Agents](userguide/09-wasm-agents.md) | Module validation, 7-state lifecycle, migration |
 | [10 Security](userguide/10-security.md) | 3-stage gate, attestation, audit results |
-| [11 Performance](userguide/11-performance.md) | 11 benchmarks, build profiles, tuning |
+| [11 Performance](userguide/11-performance.md) | Benchmark methodology, build profiles, tuning |
 | [12 Bare Metal](userguide/12-bare-metal.md) | Linker script, QEMU, measured boot, Seed/Appliance |
 | [13 Advanced & Exotic](userguide/13-advanced-exotic.md) | 6 novel capabilities, fault rollback, RuVector |
 | [14 Troubleshooting](userguide/14-troubleshooting.md) | 12 categories of common issues |
 | [15 Glossary](userguide/15-glossary.md) | 60+ terms with cross-references |
+| [16 Governed `ruv://` Context](userguide/16-ruv-context.md) | Canonical names, capabilities, immutable RVF revisions, CAS aliases, views, and receipts |
 | [Cross-Reference](userguide/cross-reference.md) | Concept index, API finder, "I want to..." tasks |
 
 </details>
@@ -685,6 +707,40 @@ node dist/cli.js h "deploy"   # howto
 ```
 
 </details>
+
+---
+
+## Governed `ruv://` Context
+
+`rvm-context` adds a canonical logical namespace for resources, memories, and
+skills while keeping authority in live RVM capabilities:
+
+```text
+# Mutable, human-friendly alias
+ruv://context.example/acme/agent/researcher/skills/web-search?view=overview
+
+# Immutable citation to the complete RVF bytes
+ruv://context.example/acme/agent/researcher/skills/web-search?rev=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&view=content
+```
+
+| Property | Contract |
+|---|---|
+| Identity | A pinned revision is SHA-256 over the complete RVF byte stream |
+| Authority | Capability handle and exact namespace grant travel out of band; a URI never grants access |
+| Retrieval boundary | Authorization and its witness record occur before resolver access or search enumeration |
+| Mutation | Pinned bytes are immutable; versionless aliases advance by full-snapshot compare-and-swap |
+| Representation | Abstract, overview, and content views are digest-bound through a profile in the existing RVF `PROFILE` segment |
+| Execution | Reading a skill never executes it; `EXECUTE` requires a pinned URI and returns a permit for the verified launch path |
+| Audit durability | Contiguous RVM witness ranges are signed as epoch receipts and committed through the existing RVF `WITNESS` segment |
+
+The implementation takes inspiration from OpenViking's unified hierarchy and
+progressive context patterns, but it is an independent RVM-native design and
+does not copy OpenViking code. `ruv://` is a logical identifier, not a network
+transport or a registered public URI scheme.
+
+See [the user guide](userguide/16-ruv-context.md) and
+[ADR-157](docs/adr/ADR-157-ruv-context-namespace.md) for the canonical grammar,
+threat model, receipt bridge, limits, and planned acceptance evidence.
 
 ---
 

@@ -16,6 +16,7 @@ members = [
     "crates/rvm-security",
     "crates/rvm-host",
     "crates/rvm-launch",
+    "crates/rvm-context",
     "crates/rvm-gpu",
     "crates/rvm-kernel",
     "tests",
@@ -53,6 +54,7 @@ rvm-wasm = { path = "crates/rvm-wasm" }
 rvm-rvf = { path = "crates/rvm-rvf" }
 rvm-host = { path = "crates/rvm-host" }
 rvm-launch = { path = "crates/rvm-launch" }
+rvm-context = { path = "crates/rvm-context" }
 rvm-security = { path = "crates/rvm-security" }
 rvm-kernel = { path = "crates/rvm-kernel" }
 rvm-gpu = { path = "crates/rvm-gpu" }
@@ -69,7 +71,7 @@ bitflags = { version = "2", default-features = false }
 
 # Testing
 criterion = { version = "0.5", features = ["html_reports"] }
-proptest = "1.5"
+proptest = "=1.5.0"
 
 [profile.release]
 opt-level = 3

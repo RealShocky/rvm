@@ -65,6 +65,10 @@ pub const SEG_TYPE_MANIFEST: u8 = 0x05;
 /// `SegmentType::Meta`: arbitrary key-value metadata, where capability
 /// declarations live.
 pub const SEG_TYPE_META: u8 = 0x07;
+/// `SegmentType::Witness`: capability manifests, proofs, and audit trails.
+pub const SEG_TYPE_WITNESS: u8 = 0x0A;
+/// `SegmentType::Profile`: domain profile declarations.
+pub const SEG_TYPE_PROFILE: u8 = 0x0B;
 /// `SegmentType::Kernel`: an embedded kernel image.
 pub const SEG_TYPE_KERNEL: u8 = 0x0E;
 /// `SegmentType::Ebpf`: an embedded eBPF program.
@@ -406,6 +410,15 @@ mod tests {
         }
         assert!(!is_executable(SEG_TYPE_META));
         assert!(!is_executable(0xEE));
+    }
+
+    #[test]
+    fn context_uses_the_canonical_rvf_profile_and_witness_discriminants() {
+        // These values are assigned by the RVF v1 registry in RuVector.  Keep
+        // the RVM reader aligned rather than inventing context-only segment
+        // types that another RVF implementation would not understand.
+        assert_eq!(SEG_TYPE_WITNESS, 0x0A);
+        assert_eq!(SEG_TYPE_PROFILE, 0x0B);
     }
 
     #[test]

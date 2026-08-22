@@ -113,9 +113,7 @@ impl<const TOTAL_PAGES: usize, const BITMAP_WORDS: usize>
     /// split on demand during allocation.
     fn init_free_all(&mut self) {
         // Clear entire bitmap first.
-        for word in &mut self.bitmap {
-            *word = 0;
-        }
+        self.bitmap.fill(0);
 
         // Mark all blocks at the maximum possible order as free.
         let max_usable_order = Self::max_usable_order();

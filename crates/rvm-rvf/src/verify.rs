@@ -395,7 +395,11 @@ fn signature_record(data: &[u8], seg: &ParsedSegment, opts: &VerifyOptions) -> V
     if footer.sig_algo != SIG_ALGO_ED25519 || footer.sig_length != ED25519_SIGNATURE_LENGTH {
         return segment_record(
             CheckKind::Signature,
-            Outcome::Skip,
+            if seg.is_executable() {
+                Outcome::Fail
+            } else {
+                Outcome::Skip
+            },
             seg,
             DetailCode::UnsupportedSignatureAlgorithm,
         );
@@ -403,7 +407,11 @@ fn signature_record(data: &[u8], seg: &ParsedSegment, opts: &VerifyOptions) -> V
     if opts.trusted_keys.is_empty() {
         return segment_record(
             CheckKind::Signature,
-            Outcome::Skip,
+            if seg.is_executable() && !opts.allow_unsigned_executable {
+                Outcome::Fail
+            } else {
+                Outcome::Skip
+            },
             seg,
             DetailCode::NoTrustedKey,
         );

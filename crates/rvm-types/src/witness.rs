@@ -315,6 +315,24 @@ pub enum ActionKind {
     /// assurance level it was produced under and does not acquire the
     /// witness chain's guarantees (ADR-285 discipline).
     AnchorExternalReceipt = 0xB0,
+
+    // --- Governed context namespace (0xC0-0xCF) ---
+    /// A versionless `ruv://` name was resolved to an immutable RVF revision.
+    ContextResolve = 0xC0,
+    /// A progressive context representation was read.
+    ContextRead = 0xC1,
+    /// An authorized context search enumerated candidate results.
+    ContextSearch = 0xC2,
+    /// A new immutable context revision was registered.
+    ContextPut = 0xC3,
+    /// A versionless alias was changed with compare-and-swap.
+    ContextAliasUpdate = 0xC4,
+    /// A context alias was tombstoned and its payload became unreachable.
+    ContextForget = 0xC5,
+    /// Execution of pinned context content was authorized.
+    ContextExecute = 0xC6,
+    /// A cryptographic receipt sealed a context witness epoch.
+    ContextEpochSeal = 0xC7,
 }
 
 impl ActionKind {
@@ -324,7 +342,7 @@ impl ActionKind {
     /// 0 = partition, 1 = capability, 2 = memory, 3 = communication,
     /// 4 = device, 5 = proof, 6 = scheduler, 7 = recovery,
     /// 8 = boot, 9 = graph, 0xA = VMID management,
-    /// 0xB = external anchoring.
+    /// 0xB = external anchoring, 0xC = governed context.
     #[must_use]
     pub const fn subsystem(self) -> u8 {
         (self as u8) >> 4
