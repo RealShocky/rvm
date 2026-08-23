@@ -7,13 +7,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: git submodule update --init --depth 1 ruvector
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-unknown-none
-          components: clippy
+          components: clippy, rustfmt
 
-      - run: cargo check
-      - run: cargo test
-      - run: cargo clippy -- -D warnings
+      - run: cargo fmt -p rvm-context -p rvm-context-service -p rvm-launch -p rvm-witness -p rvm-kernel -- --check
+      - run: cargo check --workspace --locked
+      - run: cargo test --workspace --locked
+      - run: cargo clippy --workspace --locked -- -D warnings
+      - run: cargo test -p rvm-context-service --all-features --locked
+      - run: cargo clippy -p rvm-context-service --all-targets --all-features --locked -- -D warnings
+      - run: cargo test -p rvm-launch --all-features --locked
       - run: cargo check --target aarch64-unknown-none -p rvm-hal --no-default-features
+      - run: cargo check --target aarch64-unknown-none -p rvm-context --no-default-features --locked
+      - run: cargo check --target aarch64-unknown-none -p rvm-kernel --locked
+
+  core-msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: git submodule update --init --depth 1 ruvector
+      - uses: dtolnay/rust-toolchain@1.77.2
+        with:
+          targets: aarch64-unknown-none
+      - run: cargo check -p rvm-context --all-features --locked
+      - run: cargo check --target aarch64-unknown-none -p rvm-context --no-default-features --locked
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

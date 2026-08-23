@@ -69,6 +69,19 @@ impl WitnessSnapshot {
 }
 
 impl WitnessCheckpoint {
+    /// Reconstruct a checkpoint authenticated by durable receipt storage.
+    ///
+    /// This administrative recovery constructor must only receive coordinates
+    /// verified against a signed receipt chain. Ordinary request data must not
+    /// be promoted into a checkpoint through this API.
+    #[must_use]
+    pub const fn trusted_resume(next_sequence: u64, chain_hash: u64) -> Self {
+        Self {
+            next_sequence,
+            chain_hash,
+        }
+    }
+
     /// Sequence number of the first record after this checkpoint.
     #[must_use]
     pub const fn next_sequence(self) -> u64 {

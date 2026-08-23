@@ -60,6 +60,8 @@ pub enum ContextError {
     InvalidTarget,
     /// A resolver returned a target outside the authorized request scope.
     ResolverScopeViolation,
+    /// Durable storage, encryption, or retrieval infrastructure failed closed.
+    BackendUnavailable,
 }
 
 impl fmt::Display for ContextError {
@@ -94,6 +96,7 @@ impl fmt::Display for ContextError {
             Self::ResolverScopeViolation => {
                 f.write_str("resolver returned context outside the authorized scope")
             }
+            Self::BackendUnavailable => f.write_str("context backend unavailable"),
         }
     }
 }

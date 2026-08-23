@@ -24,6 +24,8 @@ pub enum LaunchError {
     /// same application name, and state surviving a base-artifact
     /// substitution.
     LineageMismatch,
+    /// A context execution permit names another RVF or partition.
+    ContextPermitMismatch,
     /// The host adapter refused.
     Host(HostError),
     /// The execution backend refused.
@@ -40,6 +42,9 @@ impl fmt::Display for LaunchError {
             }
             Self::LineageMismatch => {
                 f.write_str("checkpoint belongs to a different base RVF identity")
+            }
+            Self::ContextPermitMismatch => {
+                f.write_str("context execution permit does not match package and placement")
             }
             Self::Host(e) => write!(f, "{e}"),
             Self::Backend(e) => write!(f, "{e}"),
@@ -64,7 +69,9 @@ impl From<LaunchError> for RvmError {
     fn from(e: LaunchError) -> Self {
         match e {
             LaunchError::IllegalTransition { .. } => RvmError::InvalidPartitionState,
-            LaunchError::LineageMismatch => RvmError::ProofInvalid,
+            LaunchError::LineageMismatch | LaunchError::ContextPermitMismatch => {
+                RvmError::ProofInvalid
+            }
             LaunchError::Host(inner) => inner.into(),
             LaunchError::Backend(inner) => inner,
             LaunchError::Rvf(inner) => inner.into(),
@@ -89,6 +96,7 @@ mod tests {
                 op: LifecycleOp::Start,
             },
             LaunchError::LineageMismatch,
+            LaunchError::ContextPermitMismatch,
             LaunchError::Host(HostError::Unverified),
             LaunchError::Backend(RvmError::ResourceLimitExceeded),
             LaunchError::Rvf(RvfError::BadMagic),

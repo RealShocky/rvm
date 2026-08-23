@@ -371,20 +371,61 @@ Before exposing a resolver through a CLI, MCP server, or HTTP gateway:
 - implement linearizable CAS in any distributed alias store; and
 - drain receipts well before the configured witness ring can wrap.
 
-The reference implementation establishes namespace, integrity, capability,
-and evidence boundaries. It does not by itself provide network federation,
-tenant-isolated persistent indexes, semantic truth, prompt-injection defense,
-cryptographic erasure, or a production receipt drainer.
+The `rvm-context` reference crate establishes namespace, integrity, capability,
+and evidence boundaries. `rvm-context-service` adds encrypted REDB persistence,
+cryptographic erasure, exact-scope RuVector indexes, durable purge/index
+outboxes, and a transactional receipt drainer. Network federation, semantic
+truth, prompt-injection defense, and deployment-specific KMS/replica adapters
+remain outside the generic implementation.
 
 ---
 
-## 11. Planned Validation
+## 11. Hosted Service
 
-Acceptance evidence for the initial implementation is defined in ADR-157 and
-includes URI conformance and property tests, full-RVF tamper tests, denied
+Build the TLS gateway and CLI with:
+
+```bash
+cargo build -p rvm-context-service --features gateway-bin --locked
+```
+
+The server requires `RVM_CONTEXT_BIND`, `RVM_CONTEXT_SCOPE`,
+`RVM_CONTEXT_ACTOR`, `RVM_CONTEXT_ROOT`, `RVM_CONTEXT_TOKEN_FILE`,
+`RVM_CONTEXT_TLS_CERT`, and `RVM_CONTEXT_TLS_KEY`. The bundled binary uses the
+local development key provider, so it additionally requires a 64-hex-character
+`RVM_CONTEXT_DEV_KEK_HEX` and the explicit
+`RVM_CONTEXT_ALLOW_LOCAL_KEK=1` acknowledgement. Writes are disabled unless
+`RVM_CONTEXT_ALLOW_WRITES=1` is set.
+
+Send a request through the certificate-validating client:
+
+```bash
+rvm-context-cli context.example 443 ca.pem token.txt /v1/resolve resolve.json
+rvm-context-cli context.example 443 ca.pem token.txt /mcp tools-list.json
+```
+
+The hosted API exposes Resolve, List, Tree, Read, Search, History, Verify, Put,
+CompareAndSwapAlias, and Forget at `/v1/*` and as MCP tools. Both adapters use
+the same JSON dispatcher. Forbidden, hidden, absent, and tombstoned targets all
+return a uniform external `404`; trusted internal telemetry retains the
+specific cause.
+
+Production embedding should construct `PersistentContextResolver` directly
+with a deployment `DataKeyProvider` backed by its HSM/KMS and a `PurgeSink`
+backed by every replica, backup, and cache it promises to erase. Never run the
+local provider or `NoopPurgeSink` while claiming infrastructure-wide erasure.
+
+## 12. Validation
+
+Acceptance evidence is defined in ADR-157 and ADR-158 and includes URI
+conformance and property tests, full-RVF tamper tests, denied
 search spy-resolver tests, exhaustive operation-to-rights checks, alias race
 and wrap tests, READ-versus-EXECUTE tests, profile provenance tampering, receipt
 range/signature/tamper tests, and resource-boundary tests.
+
+Hosted tests additionally cover encrypted restart round trips, exact-scope
+cross-tenant isolation, index and purge outbox recovery, cryptographic forget,
+receipt persistence-before-cursor advance, MCP/HTTPS parity, TLS loopback, and
+permit consumption by the verified launch boundary.
 
 Performance baselines should cover canonical and rejected URI parsing,
 authorization plus witness emission, pinned lookup, CAS, profile verification,
@@ -397,6 +438,7 @@ from results collected on different machines.
 ## Further Reading
 
 - [ADR-157: Capability-Governed `ruv://` Context Namespace](../docs/adr/ADR-157-ruv-context-namespace.md)
+- [ADR-158: Durable Hosted `ruv://` Context Service](../docs/adr/ADR-158-ruv-context-hosted-service.md)
 - [Capabilities and Proofs](05-capabilities-proofs.md)
 - [Witness and Audit](06-witness-audit.md)
 - [Security](10-security.md)

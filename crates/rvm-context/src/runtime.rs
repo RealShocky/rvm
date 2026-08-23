@@ -672,6 +672,44 @@ impl<R: ContextResolver, const C: usize, const G: usize, const W: usize, CLOCK: 
         detail_root: [u8; 32],
         signer: &S,
     ) -> ContextResult<(SignedContextEpochReceipt, WitnessCheckpoint)> {
+        self.seal_epoch_transactional(
+            request,
+            scratch,
+            namespace_root,
+            rvf_identity,
+            policy_hash,
+            detail_root,
+            signer,
+            |_, _| Ok(()),
+        )
+    }
+
+    /// Seal an epoch and durably persist its following cursor before runtime
+    /// state advances.
+    ///
+    /// `persist` receives the authenticated signed receipt and the exact state
+    /// that a recovered runtime must resume from. A persistence refusal leaves
+    /// the runtime cursor unchanged and emits no successful seal record.
+    ///
+    /// # Errors
+    ///
+    /// Refuses every condition documented by [`Self::seal_epoch`] and any
+    /// fail-closed error returned by `persist`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn seal_epoch_transactional<S: WitnessSigner, F>(
+        &mut self,
+        request: &ContextRequest,
+        scratch: &mut [WitnessRecord],
+        namespace_root: [u8; 32],
+        rvf_identity: [u8; 32],
+        policy_hash: [u8; 32],
+        detail_root: [u8; 32],
+        signer: &S,
+        persist: F,
+    ) -> ContextResult<(SignedContextEpochReceipt, WitnessCheckpoint)>
+    where
+        F: FnOnce(&SignedContextEpochReceipt, ReceiptChainState) -> ContextResult<()>,
+    {
         let authorized = self.authorize(request, ContextOperation::SealReceipt)?;
         let following_epoch_id = self
             .receipt_chain
@@ -700,10 +738,16 @@ impl<R: ContextResolver, const C: usize, const G: usize, const W: usize, CLOCK: 
         .map_err(|_| ContextError::ReceiptSealFailed)?;
         let signed_receipt = receipt.sign(signer);
         let receipt_id = signed_receipt.receipt_id();
+        let following_state = ReceiptChainState {
+            next_checkpoint,
+            next_epoch_id: following_epoch_id,
+            previous_receipt_id: receipt_id,
+        };
         {
             let verified = signed_receipt
                 .verify(signer)
                 .map_err(|_| ContextError::ReceiptSealFailed)?;
+            persist(&signed_receipt, following_state)?;
             let seal_timestamp_ns = self.clock.timestamp_ns();
             let _ = verified.emit_seal(
                 &self.witness,
@@ -712,11 +756,7 @@ impl<R: ContextResolver, const C: usize, const G: usize, const W: usize, CLOCK: 
                 seal_timestamp_ns,
             );
         }
-        self.receipt_chain = ReceiptChainState {
-            next_checkpoint,
-            next_epoch_id: following_epoch_id,
-            previous_receipt_id: receipt_id,
-        };
+        self.receipt_chain = following_state;
         Ok((signed_receipt, next_checkpoint))
     }
 }
@@ -1068,6 +1108,37 @@ mod tests {
             runtime.receipt_chain_state().previous_receipt_id(),
             second.receipt_id()
         );
+    }
+
+    #[test]
+    fn receipt_persistence_failure_does_not_advance_or_claim_a_seal() {
+        let (mut runtime, handle, _) = runtime(CapRights::PROVE);
+        let rvf_identity = [9; 32];
+        let pinned = target()
+            .with_revision(Revision::from_bytes(rvf_identity))
+            .unwrap()
+            .into_uri();
+        let seal_request = request(handle, ContextOperation::SealReceipt, pinned);
+        let signer = HmacSha256WitnessSigner::new([0x66; 32]);
+        let mut scratch = [WitnessRecord::zeroed(); 16];
+        let initial = runtime.receipt_chain_state();
+        let result = runtime.seal_epoch_transactional(
+            &seal_request,
+            &mut scratch,
+            [1; 32],
+            rvf_identity,
+            [2; 32],
+            [3; 32],
+            &signer,
+            |_, _| Err(ContextError::BackendUnavailable),
+        );
+        assert_eq!(result, Err(ContextError::BackendUnavailable));
+        assert_eq!(runtime.receipt_chain_state(), initial);
+        let mut records = [WitnessRecord::zeroed(); 8];
+        let count = runtime.witness_log().snapshot(&mut records);
+        assert!(records[..count]
+            .iter()
+            .all(|record| { record.action_kind != ActionKind::ContextEpochSeal as u8 }));
     }
 
     #[test]

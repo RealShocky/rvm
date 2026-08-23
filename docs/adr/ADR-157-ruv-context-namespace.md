@@ -5,7 +5,8 @@
 **Authors**: RVM Contributors
 **Supersedes**: None
 **Related**: ADR-134 (Witness Schema), ADR-149 (RVF Integration), ADR-155
-(RVF Execution Contract), ADR-156 (External Receipt Anchoring)
+(RVF Execution Contract), ADR-156 (External Receipt Anchoring), ADR-158
+(Durable Hosted `ruv://` Context Service)
 
 ---
 
@@ -61,7 +62,8 @@ representations, explicit execution permits, and signed epoch receipts.
 
 `ruv://` is a logical identifier, not a transport protocol and not a public URI
 scheme registration. Network discovery, federation, persistent resolver
-storage, and IANA registration are outside this decision.
+storage, and IANA registration are outside this decision. ADR-158 specifies the
+hosted durable adapter without changing this core contract.
 
 ## Specification
 
@@ -653,17 +655,20 @@ the ADR Proposed while interoperability evidence is collected.
 
 ### Phase 2: Hosted integration
 
-Connect an authorized RuVector adapter and an RVF context compiler. Verify that
-denied searches do not reach ANN enumeration. Add an HTTPS gateway and MCP/CLI
-surfaces that preserve the canonical URI unchanged. Hosted isolation must be
-described as operating-system sandbox plus WASM, not bare-metal partition
+ADR-158 implements an authorized, physically sharded RuVector adapter and a
+canonical RVF context compiler. Denied searches have zero backend touches. Its
+HTTPS gateway and MCP/CLI surfaces preserve canonical URIs unchanged. Hosted
+isolation remains operating-system sandbox plus WASM, not bare-metal partition
 assurance.
 
 ### Phase 3: Durable service
 
-Add a linearizable persistent alias store, KMS-backed per-object encryption,
-receipt draining with backpressure, replica and cache purge, tenant-isolated
-indexes, recovery tests, quotas, and service-level timing analysis.
+ADR-158 adds a linearizable REDB alias store, per-object envelope encryption
+behind a KMS provider boundary, transactional receipt draining with
+backpressure, replica/cache purge outboxes, exact-scope tenant indexes,
+recovery tests, quotas, and service-level timing baselines. Production
+deployments must supply the concrete KMS and purge adapters for their own
+infrastructure.
 
 ### Phase 4: Interoperability and registration
 

@@ -185,6 +185,7 @@ Layer 0: Machine Entry (assembly, <500 LoC)
 | `rvm-host` | Per-OS adapters and isolation mechanisms: picks the strongest available isolation, places the agent, spawns it |
 | `rvm-launch` | Instance lifecycle over the adapters: `inspect`, `verify`, run, suspend, resume, checkpoint, witness, terminate ([ADR-289](https://github.com/ruvnet/RuVector/tree/main/docs/adr)) |
 | `rvm-context` | Capability-governed `ruv://` names, immutable RVF revisions, CAS aliases, progressive views, and epoch receipts ([ADR-157](docs/adr/ADR-157-ruv-context-namespace.md)) |
+| `rvm-context-service` | Encrypted REDB persistence, exact-scope RuVector retrieval, receipt draining, canonical RVF compilation, and TLS/MCP/CLI hosting ([ADR-158](docs/adr/ADR-158-ruv-context-hosted-service.md)) |
 
 ### Dependency Graph
 
@@ -738,9 +739,18 @@ progressive context patterns, but it is an independent RVM-native design and
 does not copy OpenViking code. `ruv://` is a logical identifier, not a network
 transport or a registered public URI scheme.
 
-See [the user guide](userguide/16-ruv-context.md) and
-[ADR-157](docs/adr/ADR-157-ruv-context-namespace.md) for the canonical grammar,
-threat model, receipt bridge, limits, and planned acceptance evidence.
+The hosted adapter adds encrypted durable storage, an exact-scope RuVector
+active index, receipt persistence with backpressure, deterministic RVF
+compilation, TLS-only HTTP, MCP, and a certificate-validating CLI. HTTPS and MCP
+share one dispatcher, so canonical URI parsing and authorization behavior are
+identical on both surfaces. The bundled local key provider is development-only;
+production deployments inject their KMS and replica/cache purge providers.
+
+See [the user guide](userguide/16-ruv-context.md),
+[ADR-157](docs/adr/ADR-157-ruv-context-namespace.md), and
+[ADR-158](docs/adr/ADR-158-ruv-context-hosted-service.md) for the grammar,
+threat model, durable service boundary, recovery behavior, and acceptance
+evidence.
 
 ---
 
