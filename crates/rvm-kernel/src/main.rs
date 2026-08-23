@@ -50,7 +50,7 @@ fn main() {}
 // 2. Sets up the stack pointer from `__stack_top`
 // 3. Jumps to `rvm_main` (Rust entry)
 // 4. If `rvm_main` ever returns, parks the CPU via WFE loop
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", target_os = "none"))]
 core::arch::global_asm!(
     ".section .text.boot",
     ".global _start",
