@@ -43,13 +43,40 @@ impl core::fmt::Display for ChainIntegrityError {
 /// Returns [`ChainIntegrityError::RecordCorrupted`] if a record hash does not match.
 #[allow(clippy::cast_possible_truncation)]
 pub fn verify_chain(records: &[WitnessRecord]) -> Result<usize, ChainIntegrityError> {
+    verify_chain_from(records, 0, 0)
+}
+
+/// Verify a contiguous witness epoch beginning at a non-genesis checkpoint.
+///
+/// `initial_chain_hash` is the full internal hash captured immediately before
+/// `expected_first_sequence`. In addition to hash linkage, this variant checks
+/// that every sequence is contiguous, which prevents omission and reordering
+/// inside a sealed epoch.
+///
+/// # Errors
+///
+/// Returns [`ChainIntegrityError::EmptyLog`] for an empty slice,
+/// [`ChainIntegrityError::ChainBreak`] for a sequence or previous-hash
+/// mismatch, or [`ChainIntegrityError::RecordCorrupted`] for a bad self hash.
+#[allow(clippy::cast_possible_truncation)]
+pub fn verify_chain_from(
+    records: &[WitnessRecord],
+    initial_chain_hash: u64,
+    expected_first_sequence: u64,
+) -> Result<usize, ChainIntegrityError> {
     if records.is_empty() {
         return Err(ChainIntegrityError::EmptyLog);
     }
 
-    let mut prev_chain_hash: u64 = 0;
+    let mut prev_chain_hash = initial_chain_hash;
+    let mut expected_sequence = expected_first_sequence;
 
     for record in records {
+        if record.sequence != expected_sequence {
+            return Err(ChainIntegrityError::ChainBreak {
+                sequence: record.sequence,
+            });
+        }
         let expected_prev = fold_u64_to_u32(prev_chain_hash);
         if record.prev_hash != expected_prev {
             return Err(ChainIntegrityError::ChainBreak {
@@ -65,6 +92,7 @@ pub fn verify_chain(records: &[WitnessRecord]) -> Result<usize, ChainIntegrityEr
         }
 
         prev_chain_hash = chain;
+        expected_sequence = expected_sequence.wrapping_add(1);
     }
 
     Ok(records.len())
@@ -153,6 +181,37 @@ mod tests {
     #[test]
     fn test_verify_empty() {
         assert_eq!(verify_chain(&[]), Err(ChainIntegrityError::EmptyLog));
+    }
+
+    #[test]
+    fn verifies_a_checkpoint_relative_epoch() {
+        let log = WitnessLog::<16>::new();
+        log.append(WitnessRecord::zeroed());
+        let checkpoint = log.checkpoint();
+        for _ in 0..3 {
+            log.append(WitnessRecord::zeroed());
+        }
+        let mut records = [WitnessRecord::zeroed(); 3];
+        let snapshot = log.snapshot_since(checkpoint, &mut records).unwrap();
+        assert_eq!(snapshot.count(), 3);
+        assert_eq!(
+            verify_chain_from(
+                &records,
+                checkpoint.chain_hash(),
+                checkpoint.next_sequence()
+            ),
+            Ok(3)
+        );
+    }
+
+    #[test]
+    fn checkpoint_verification_rejects_an_omitted_sequence() {
+        let records = build_chain(4);
+        let omitted = [records[0], records[2], records[3]];
+        assert!(matches!(
+            verify_chain_from(&omitted, 0, 0),
+            Err(ChainIntegrityError::ChainBreak { .. })
+        ));
     }
 
     #[test]

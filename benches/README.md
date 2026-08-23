@@ -12,9 +12,8 @@ RVM design constraints. It is not published and exists solely for
 |-----------|------|------------------|
 | `coherence` | `benches/coherence.rs` | `EmaFilter::update` throughput (fixed-point EMA computation) |
 | `witness` | `benches/witness.rs` | `WitnessLog::append` throughput (256-slot ring buffer) |
-
-A placeholder benchmark (`rvm_bench.rs`) is also present for future
-expansion.
+| `context` | `benches/context.rs` | Canonical `ruv://` parse and format latency |
+| `rvm_bench` | `benches/rvm_bench.rs` | Integrated witness, capability, proof, partition, coherence, memory, security, and GPU hot paths |
 
 ## Running
 

@@ -17,7 +17,7 @@ crate-type = ["rlib"]
 rvm-types = { workspace = true }
 rvm-witness = { workspace = true }
 sha2 = { workspace = true }
-ed25519-dalek = { version = "2.1", default-features = false }
+ed25519-dalek = { version = "=2.1.1", default-features = false }
 
 [dev-dependencies]
 

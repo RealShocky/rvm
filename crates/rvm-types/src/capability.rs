@@ -56,6 +56,8 @@ pub enum CapType {
     Vcpu = 7,
     /// Authority over a coherence observer.
     Coherence = 8,
+    /// Authority over a governed `ruv://` context scope.
+    Context = 9,
 }
 
 /// Unique identifier for a capability in the system-wide capability space.

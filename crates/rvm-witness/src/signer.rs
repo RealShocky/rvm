@@ -88,7 +88,8 @@ impl WitnessSigner for StrictSigner {
 ///
 /// We manually serialise the fields in layout order to avoid depending
 /// on `repr(C)` padding semantics across platforms.
-fn record_to_bytes(r: &WitnessRecord) -> [u8; 64] {
+#[must_use]
+pub fn record_to_bytes(r: &WitnessRecord) -> [u8; 64] {
     let mut buf = [0u8; 64];
     buf[0..8].copy_from_slice(&r.sequence.to_le_bytes());
     buf[8..16].copy_from_slice(&r.timestamp_ns.to_le_bytes());

@@ -31,6 +31,86 @@ struct WitnessLogInner<const N: usize> {
     total_emitted: u64,
 }
 
+/// An atomic boundary in a witness log.
+///
+/// The sequence is the next record that will be written. The full internal
+/// chain hash is retained so a later epoch can be verified without pretending
+/// it began at genesis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WitnessCheckpoint {
+    next_sequence: u64,
+    chain_hash: u64,
+}
+
+/// Complete result of an atomic checkpoint-relative snapshot.
+///
+/// `end_checkpoint` was captured under the same lock as the copied range, so
+/// it is the only safe boundary for the next epoch. Records appended after
+/// the lock is released belong to that next epoch rather than falling between
+/// two independently captured checkpoints.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WitnessSnapshot {
+    count: usize,
+    end_checkpoint: WitnessCheckpoint,
+}
+
+impl WitnessSnapshot {
+    /// Number of records copied into the caller's output slice.
+    #[must_use]
+    pub const fn count(self) -> usize {
+        self.count
+    }
+
+    /// Atomic boundary at which the following epoch must begin.
+    #[must_use]
+    pub const fn end_checkpoint(self) -> WitnessCheckpoint {
+        self.end_checkpoint
+    }
+}
+
+impl WitnessCheckpoint {
+    /// Sequence number of the first record after this checkpoint.
+    #[must_use]
+    pub const fn next_sequence(self) -> u64 {
+        self.next_sequence
+    }
+
+    /// Full internal chain hash immediately before the next record.
+    #[must_use]
+    pub const fn chain_hash(self) -> u64 {
+        self.chain_hash
+    }
+}
+
+/// Why a checkpoint-relative snapshot could not be produced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnapshotSinceError {
+    /// The checkpoint refers to a sequence later than the current log head.
+    FutureCheckpoint,
+    /// At least one requested record has already been overwritten by the ring.
+    RecordsOverwritten,
+    /// The caller's output slice cannot hold the complete epoch.
+    OutputTooSmall {
+        /// Number of records required to return the epoch atomically.
+        required: usize,
+    },
+    /// A retained ring slot did not carry the expected sequence.
+    SequenceMismatch,
+}
+
+impl core::fmt::Display for SnapshotSinceError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::FutureCheckpoint => f.write_str("witness checkpoint is ahead of the log"),
+            Self::RecordsOverwritten => f.write_str("witness records were overwritten"),
+            Self::OutputTooSmall { required } => {
+                write!(f, "witness output needs {required} records")
+            }
+            Self::SequenceMismatch => f.write_str("witness ring sequence mismatch"),
+        }
+    }
+}
+
 impl<const N: usize> WitnessLog<N> {
     /// Compile-time assertion: N must be greater than zero.
     ///
@@ -137,6 +217,75 @@ impl<const N: usize> WitnessLog<N> {
     /// Returns the total number of records ever emitted.
     pub fn total_emitted(&self) -> u64 {
         self.inner.lock().total_emitted
+    }
+
+    /// Capture the current sequence and full chain hash under one lock.
+    #[must_use]
+    pub fn checkpoint(&self) -> WitnessCheckpoint {
+        let inner = self.inner.lock();
+        WitnessCheckpoint {
+            next_sequence: inner.sequence,
+            chain_hash: inner.chain_hash,
+        }
+    }
+
+    /// Copy every record emitted after `checkpoint` in sequence order.
+    ///
+    /// This operation is all or nothing. It refuses partial output and refuses
+    /// epochs whose earliest records have wrapped out of the ring, because
+    /// either condition would make a cryptographic epoch receipt incomplete.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SnapshotSinceError::FutureCheckpoint`] for an impossible
+    /// boundary, [`SnapshotSinceError::RecordsOverwritten`] after ring wrap,
+    /// [`SnapshotSinceError::OutputTooSmall`] when `out` is undersized, or
+    /// [`SnapshotSinceError::SequenceMismatch`] if retained state is corrupt.
+    pub fn snapshot_since(
+        &self,
+        checkpoint: WitnessCheckpoint,
+        out: &mut [WitnessRecord],
+    ) -> Result<WitnessSnapshot, SnapshotSinceError> {
+        let inner = self.inner.lock();
+        if checkpoint.next_sequence > inner.sequence {
+            return Err(SnapshotSinceError::FutureCheckpoint);
+        }
+
+        let capacity = u64::try_from(N).map_err(|_| SnapshotSinceError::RecordsOverwritten)?;
+        let retained_start = inner.sequence.saturating_sub(capacity);
+        if checkpoint.next_sequence < retained_start {
+            return Err(SnapshotSinceError::RecordsOverwritten);
+        }
+
+        let required_u64 = inner.sequence - checkpoint.next_sequence;
+        let required =
+            usize::try_from(required_u64).map_err(|_| SnapshotSinceError::RecordsOverwritten)?;
+        if out.len() < required {
+            return Err(SnapshotSinceError::OutputTooSmall { required });
+        }
+
+        for (offset, slot) in out.iter_mut().enumerate().take(required) {
+            let offset =
+                u64::try_from(offset).map_err(|_| SnapshotSinceError::RecordsOverwritten)?;
+            let sequence = checkpoint
+                .next_sequence
+                .checked_add(offset)
+                .ok_or(SnapshotSinceError::SequenceMismatch)?;
+            let ring_index = usize::try_from(sequence % capacity)
+                .map_err(|_| SnapshotSinceError::SequenceMismatch)?;
+            let record = inner.records[ring_index];
+            if record.sequence != sequence {
+                return Err(SnapshotSinceError::SequenceMismatch);
+            }
+            *slot = record;
+        }
+        Ok(WitnessSnapshot {
+            count: required,
+            end_checkpoint: WitnessCheckpoint {
+                next_sequence: inner.sequence,
+                chain_hash: inner.chain_hash,
+            },
+        })
     }
 
     /// Returns the number of records currently in the buffer.
@@ -346,5 +495,49 @@ mod tests {
         stored.actor_partition_id = 999;
         // Verify should fail.
         assert!(!signer.verify(&stored));
+    }
+
+    #[test]
+    fn checkpoint_snapshot_is_contiguous_and_complete() {
+        let log = WitnessLog::<8>::new();
+        log.append(make_record(ActionKind::ContextRead, 1, 1, 1));
+        let checkpoint = log.checkpoint();
+        log.append(make_record(ActionKind::ContextResolve, 1, 2, 2));
+        log.append(make_record(ActionKind::ContextRead, 1, 3, 3));
+
+        let mut out = [WitnessRecord::zeroed(); 4];
+        let snapshot = log.snapshot_since(checkpoint, &mut out).unwrap();
+        assert_eq!(snapshot.count(), 2);
+        assert_eq!(snapshot.end_checkpoint(), log.checkpoint());
+        assert_eq!(out[0].sequence, checkpoint.next_sequence());
+        assert_eq!(out[1].sequence, checkpoint.next_sequence() + 1);
+    }
+
+    #[test]
+    fn checkpoint_snapshot_refuses_partial_output() {
+        let log = WitnessLog::<8>::new();
+        let checkpoint = log.checkpoint();
+        log.append(make_record(ActionKind::ContextRead, 1, 1, 1));
+        log.append(make_record(ActionKind::ContextRead, 1, 2, 2));
+
+        let mut out = [WitnessRecord::zeroed(); 1];
+        assert_eq!(
+            log.snapshot_since(checkpoint, &mut out),
+            Err(SnapshotSinceError::OutputTooSmall { required: 2 })
+        );
+    }
+
+    #[test]
+    fn checkpoint_snapshot_detects_ring_wrap() {
+        let log = WitnessLog::<2>::new();
+        let checkpoint = log.checkpoint();
+        for target in 0..3 {
+            log.append(make_record(ActionKind::ContextRead, 1, target, target));
+        }
+        let mut out = [WitnessRecord::zeroed(); 3];
+        assert_eq!(
+            log.snapshot_since(checkpoint, &mut out),
+            Err(SnapshotSinceError::RecordsOverwritten)
+        );
     }
 }

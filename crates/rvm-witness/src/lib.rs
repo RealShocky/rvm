@@ -49,12 +49,13 @@ mod signer;
 
 pub use emit::WitnessEmitter;
 pub use hash::{compute_chain_hash, compute_record_hash, fnv1a_64};
-pub use log::WitnessLog;
+pub use log::{SnapshotSinceError, WitnessCheckpoint, WitnessLog, WitnessSnapshot};
 pub use record::{ActionKind, WitnessRecord};
 pub use replay::{
-    query_by_action_kind, query_by_partition, query_by_time_range, verify_chain,
+    query_by_action_kind, query_by_partition, query_by_time_range, verify_chain, verify_chain_from,
     ChainIntegrityError,
 };
+pub use signer::record_to_bytes;
 #[cfg(any(test, feature = "null-signer"))]
 #[allow(deprecated)]
 pub use signer::NullSigner;

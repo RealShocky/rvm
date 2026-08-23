@@ -41,6 +41,7 @@ Each capability targets a specific kind of kernel object:
 | `Proof` | 6 | Escalation, deep proof verification |
 | `Vcpu` | 7 | Virtual CPU control |
 | `Coherence` | 8 | Coherence observer operations |
+| `Context` | 9 | Capability-governed `ruv://` namespace scopes |
 
 ### The `CapToken` Struct
 

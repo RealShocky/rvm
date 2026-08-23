@@ -21,7 +21,7 @@ spin = { workspace = true }
 sha2 = { version = "0.10", default-features = false, optional = true }
 subtle = { workspace = true }
 hmac = { version = "0.12", default-features = false, optional = true }
-ed25519-dalek = { version = "2.1", default-features = false, optional = true }
+ed25519-dalek = { version = "=2.1.1", default-features = false, optional = true }
 
 [features]
 default = ["crypto-sha256", "strict-signing"]
