@@ -46,6 +46,8 @@ pub enum RvfError {
     /// quietly runs without a capability it declared is indistinguishable
     /// from an agent that is working.
     UnsupportedCapability(CapabilityClass),
+    /// The container names a capability class unknown to this RVM version.
+    UnknownCapability,
     /// A capability mapping could not be installed into the capability table.
     CapabilityTableFull,
 }
@@ -74,6 +76,7 @@ impl fmt::Display for RvfError {
             Self::UnsupportedCapability(c) => {
                 write!(f, "RVM cannot represent capability class {c}")
             }
+            Self::UnknownCapability => f.write_str("RVF declares an unknown capability class"),
             Self::CapabilityTableFull => write!(f, "capability table has no free slot"),
         }
     }
@@ -82,9 +85,9 @@ impl fmt::Display for RvfError {
 impl From<RvfError> for RvmError {
     fn from(e: RvfError) -> Self {
         match e {
-            RvfError::UnsupportedCapability(_) | RvfError::UnsupportedVersion(_) => {
-                RvmError::Unsupported
-            }
+            RvfError::UnsupportedCapability(_)
+            | RvfError::UnknownCapability
+            | RvfError::UnsupportedVersion(_) => RvmError::Unsupported,
             RvfError::CapabilityTableFull | RvfError::TooManySegments => {
                 RvmError::ResourceLimitExceeded
             }
@@ -118,6 +121,7 @@ mod tests {
             RvfError::TooManySegments,
             RvfError::NoForwardProgress,
             RvfError::UnsupportedCapability(CapabilityClass::Clipboard),
+            RvfError::UnknownCapability,
             RvfError::CapabilityTableFull,
         ];
         for e in all {
