@@ -26,6 +26,8 @@ pub enum LaunchError {
     LineageMismatch,
     /// A context execution permit names another RVF or partition.
     ContextPermitMismatch,
+    /// Runtime bytes do not match any executable segment that was verified.
+    ExecutableMismatch,
     /// The host adapter refused.
     Host(HostError),
     /// The execution backend refused.
@@ -45,6 +47,9 @@ impl fmt::Display for LaunchError {
             }
             Self::ContextPermitMismatch => {
                 f.write_str("context execution permit does not match package and placement")
+            }
+            Self::ExecutableMismatch => {
+                f.write_str("module does not match a verified executable segment")
             }
             Self::Host(e) => write!(f, "{e}"),
             Self::Backend(e) => write!(f, "{e}"),
@@ -69,9 +74,9 @@ impl From<LaunchError> for RvmError {
     fn from(e: LaunchError) -> Self {
         match e {
             LaunchError::IllegalTransition { .. } => RvmError::InvalidPartitionState,
-            LaunchError::LineageMismatch | LaunchError::ContextPermitMismatch => {
-                RvmError::ProofInvalid
-            }
+            LaunchError::LineageMismatch
+            | LaunchError::ContextPermitMismatch
+            | LaunchError::ExecutableMismatch => RvmError::ProofInvalid,
             LaunchError::Host(inner) => inner.into(),
             LaunchError::Backend(inner) => inner,
             LaunchError::Rvf(inner) => inner.into(),
@@ -97,6 +102,7 @@ mod tests {
             },
             LaunchError::LineageMismatch,
             LaunchError::ContextPermitMismatch,
+            LaunchError::ExecutableMismatch,
             LaunchError::Host(HostError::Unverified),
             LaunchError::Backend(RvmError::ResourceLimitExceeded),
             LaunchError::Rvf(RvfError::BadMagic),
