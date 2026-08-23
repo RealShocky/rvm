@@ -713,6 +713,52 @@ node dist/cli.js h "deploy"   # howto
 
 ## Governed `ruv://` Context
 
+[![The ruv:// Namespace — a URI that grants nothing](docs/ruv-context/preview.svg)](https://ruvnet.github.io/rvm/ruv-context/)
+
+**→ [Read the illustrated guide](https://ruvnet.github.io/rvm/ruv-context/)** — why ambient
+authority breaks down for agents, how the namespace works, and how to wire it up.
+
+### In plain terms
+
+Almost every system decides access the same way: you name a thing, the system works out who you
+are, then it decides. Your authority is *ambient* — it surrounds your identity and applies to
+anything you can name. Unix permissions work like this. So do database row filters and most
+role-based access layers.
+
+That has a failure mode with a name and a sixty-year history: the **confused deputy**. Something
+holding more authority than its caller gets talked into spending that authority on the caller's
+behalf. It isn't compromised and isn't buggy in any local sense — it simply can't tell which of
+its powers the request was entitled to, because the request only carried a *name*, and anyone can
+write a name down.
+
+Agents make this sharp. An agent *is* a deputy: it holds tools, credentials, and memory, and it
+takes instructions from text it just retrieved — text someone else may have authored. If naming a
+resource is enough to reach it, then any string that reaches the model is a possible instruction
+to reach it.
+
+`ruv://` separates the two things ambient systems fuse:
+
+- **The name is inert.** A `ruv://` URI is just an address. Parsing one grants nothing. Resolving
+  a skill does not execute it. You can paste one in a ticket without leaking access.
+- **The right arrives separately.** A capability handle is handed over deliberately, can be
+  narrowed on the way, and can be revoked. It never travels in the URI and never appears in
+  ordinary logs.
+- **The check happens first.** Authorization and its witness record run *before* the resolver or
+  the search index is touched — not after, and not as a filter on results.
+
+So an agent that talks itself into naming another tenant's memory gets nothing back. Not an empty
+filtered result — nothing, from a backend that was never asked.
+
+| Instead of | Which fails because | `ruv://` |
+|---|---|---|
+| A token in the URL | The URL *is* the credential — it leaks via logs, referrers, screenshots | Handles never appear in the URI |
+| Checking the ACL after lookup | Existence leaks through timing and errors that differ by cause | Authorization precedes the resolver; four causes return one identical error |
+| `WHERE tenant_id = ?` | One forgotten clause is a breach; every query still traverses everyone's data | A separate physical index per scope — isolation is a different file, not a filter |
+| Path-prefix tenancy | `/project` silently captures `/project-archive` | Segment-wise matching; text prefixes are never used |
+| Soft-deleting a row | The bytes remain and "deleted" is a flag anything can ignore | Destroy the per-object key; the ciphertext becomes noise for everyone |
+
+### The contract
+
 `rvm-context` adds a canonical logical namespace for resources, memories, and
 skills while keeping authority in live RVM capabilities:
 

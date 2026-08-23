@@ -1,0 +1,1078 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Why ambient authority fails for agents, and how rvm's capability-governed ruv:// namespace separates naming a thing from being allowed to reach it.">
+<meta property="og:title" content="The ruv:// Namespace">
+<meta property="og:description" content="A URI that grants nothing. Capability-governed context addressing in rvm.">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://ruvnet.github.io/rvm/ruv-context/preview.svg">
+<style>
+  /* Minimal reset - the artifact host provides one; Pages does not. */
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0}
+  img,svg{max-width:100%}
+  table{border-collapse:collapse}
+</style>
+<title>The ruv:// Namespace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+</head>
+<body>
+<style>
+  /* ---- Light palette: the complete token set lives on bare :root ---- */
+  :root {
+    --ground:      #F6F7F9;
+    --surface:     #FFFFFF;
+    --surface-sunk:#EDEFF3;
+    --hairline:    #D8DCE4;
+    --ink:         #171B24;
+    --ink-soft:    #4A5162;
+    --ink-faint:   #737B8C;
+    --seal:        #9A6117;
+    --seal-wash:   #F4E9D8;
+    --grant:       #1F6E5E;
+    --grant-wash:  #DDEFE9;
+    --deny:        #96303F;
+    --deny-wash:   #F7E2E4;
+
+    --measure: 66ch;
+    --step--1: clamp(0.82rem, 0.8rem + 0.1vw, 0.88rem);
+    --step-0:  clamp(1rem, 0.97rem + 0.16vw, 1.09rem);
+    --step-1:  clamp(1.22rem, 1.14rem + 0.36vw, 1.45rem);
+    --step-2:  clamp(1.55rem, 1.38rem + 0.78vw, 2.05rem);
+    --step-3:  clamp(2rem, 1.62rem + 1.8vw, 3.3rem);
+    --step-4:  clamp(2.5rem, 1.8rem + 3.2vw, 4.6rem);
+  }
+
+  /* ---- Dark: redefine tokens only. Guarded so an explicit light choice wins. ---- */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #12161F;
+      --surface:     #191E29;
+      --surface-sunk:#0D1119;
+      --hairline:    #2C3444;
+      --ink:         #E6E9F0;
+      --ink-soft:    #A8B0C2;
+      --ink-faint:   #767F93;
+      --seal:        #D69A45;
+      --seal-wash:   #2A2114;
+      --grant:       #4FB8A0;
+      --grant-wash:  #12241F;
+      --deny:        #D9697A;
+      --deny-wash:   #261417;
+    }
+  }
+  /* ---- Toggle wins in the other direction too ---- */
+  :root[data-theme="dark"] {
+    --ground:      #12161F;
+    --surface:     #191E29;
+    --surface-sunk:#0D1119;
+    --hairline:    #2C3444;
+    --ink:         #E6E9F0;
+    --ink-soft:    #A8B0C2;
+    --ink-faint:   #767F93;
+    --seal:        #D69A45;
+    --seal-wash:   #2A2114;
+    --grant:       #4FB8A0;
+    --grant-wash:  #12241F;
+    --deny:        #D9697A;
+    --deny-wash:   #261417;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: var(--step-0);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 78rem; margin: 0 auto; padding: 0 clamp(1.1rem, 4vw, 3rem); }
+  .measure { max-width: var(--measure); }
+
+  h1, h2, h3 {
+    font-family: Fraunces, ui-serif, Georgia, serif;
+    font-variation-settings: "opsz" 96, "SOFT" 0, "WONK" 1;
+    text-wrap: balance;
+    line-height: 1.1;
+    margin: 0;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--seal);
+    margin: 0 0 0.9rem;
+  }
+
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace; }
+
+  p code, li code, td code {
+    background: var(--surface-sunk);
+    border: 1px solid var(--hairline);
+    border-radius: 3px;
+    padding: 0.08em 0.34em;
+    font-size: 0.88em;
+  }
+
+  a { color: var(--seal); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--seal); outline-offset: 3px; border-radius: 2px; }
+
+  /* ================= HERO ================= */
+  .hero {
+    border-bottom: 1px solid var(--hairline);
+    padding: clamp(3.5rem, 9vw, 7rem) 0 clamp(2.5rem, 6vw, 4.5rem);
+    background:
+      radial-gradient(120% 90% at 12% -10%, var(--seal-wash) 0%, transparent 58%);
+  }
+  .hero h1 {
+    font-size: var(--step-4);
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    margin-bottom: 1.3rem;
+  }
+  .hero .lede { font-size: var(--step-1); color: var(--ink-soft); max-width: 54ch; }
+
+  /* The dissected URI — the page's central object */
+  .uri-plate {
+    margin-top: clamp(2.4rem, 5vw, 3.6rem);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: clamp(1.3rem, 3vw, 2.2rem) clamp(1rem, 3vw, 2.2rem) clamp(1.1rem, 2.4vw, 1.6rem);
+    overflow-x: auto;
+  }
+  .uri-line {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: clamp(0.85rem, 2.1vw, 1.42rem);
+    font-weight: 500;
+    white-space: nowrap;
+    display: flex;
+    align-items: flex-end;
+    gap: 0;
+  }
+  .seg { display: flex; flex-direction: column; gap: 0.55rem; }
+  .seg .val { padding: 0.1em 0.06em; }
+  .seg .tag {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border-top: 1px solid var(--hairline);
+    padding-top: 0.4rem;
+    white-space: nowrap;
+  }
+  .seg.k .val   { color: var(--seal); }
+  .seg.k .tag   { color: var(--seal); border-top-color: var(--seal); }
+  .punct { color: var(--ink-faint); padding: 0.1em 0; }
+  .uri-note { margin: 1.4rem 0 0; font-size: var(--step--1); color: var(--ink-faint); }
+
+  .reveal { opacity: 0; transform: translateY(6px); }
+  .lit .reveal { animation: rise 0.5s cubic-bezier(.2,.7,.3,1) forwards; }
+  .lit .reveal:nth-child(1) { animation-delay: .05s }
+  .lit .reveal:nth-child(2) { animation-delay: .10s }
+  .lit .reveal:nth-child(3) { animation-delay: .15s }
+  .lit .reveal:nth-child(4) { animation-delay: .20s }
+  .lit .reveal:nth-child(5) { animation-delay: .25s }
+  .lit .reveal:nth-child(6) { animation-delay: .30s }
+  .lit .reveal:nth-child(7) { animation-delay: .35s }
+  .lit .reveal:nth-child(8) { animation-delay: .40s }
+  .lit .reveal:nth-child(9) { animation-delay: .45s }
+  .lit .reveal:nth-child(10){ animation-delay: .50s }
+  .lit .reveal:nth-child(11){ animation-delay: .55s }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+
+  /* ================= SECTIONS ================= */
+  section { padding: clamp(3rem, 7vw, 5.5rem) 0; border-bottom: 1px solid var(--hairline); }
+  section > .wrap > h2 { font-size: var(--step-3); font-weight: 600; letter-spacing: -0.018em; }
+  section > .wrap > h2 + p { margin-top: 1.1rem; color: var(--ink-soft); }
+  h3 { font-size: var(--step-1); font-weight: 600; margin-top: 2.6rem; }
+
+  .claim {
+    font-family: Fraunces, ui-serif, Georgia, serif;
+    font-variation-settings: "opsz" 120, "WONK" 1;
+    font-size: var(--step-2);
+    line-height: 1.24;
+    border-left: 3px solid var(--seal);
+    padding-left: clamp(1rem, 2.4vw, 1.7rem);
+    margin: 2.6rem 0;
+    max-width: 40ch;
+    text-wrap: balance;
+  }
+
+  figure { margin: 2.8rem 0; }
+  figure svg { display: block; width: 100%; max-width: 100%; height: auto; color: var(--ink-soft); }
+  .figframe {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: clamp(1rem, 2.6vw, 1.9rem);
+    overflow-x: auto;
+  }
+  figcaption {
+    margin-top: 0.95rem;
+    font-size: var(--step--1);
+    color: var(--ink-faint);
+    max-width: 62ch;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.8rem 0; font-size: var(--step--1); }
+  th, td { text-align: left; padding: 0.62rem 0.8rem 0.62rem 0; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  th { color: var(--ink-faint); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; font-size: 0.7rem; }
+  .tablescroll { overflow-x: auto; }
+
+  pre {
+    background: var(--surface-sunk);
+    border: 1px solid var(--hairline);
+    border-radius: 5px;
+    padding: 1rem 1.1rem;
+    overflow-x: auto;
+    font-size: var(--step--1);
+    line-height: 1.62;
+    margin: 1.4rem 0;
+  }
+  pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+  .c-key { color: var(--seal); }
+  .c-dim { color: var(--ink-faint); }
+  .c-ok  { color: var(--grant); }
+
+  .grid { display: grid; gap: 1.15rem; margin: 2rem 0; }
+  @media (min-width: 46rem) { .grid.two { grid-template-columns: 1fr 1fr; } .grid.three { grid-template-columns: repeat(3,1fr); } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: 1.25rem 1.35rem;
+  }
+  .card h4 {
+    margin: 0 0 0.5rem;
+    font-family: Fraunces, ui-serif, Georgia, serif;
+    font-variation-settings: "opsz" 40, "WONK" 1;
+    font-size: 1.06rem;
+    font-weight: 600;
+  }
+  .card p { margin: 0; font-size: var(--step--1); color: var(--ink-soft); }
+  .card .uri { display: block; margin-top: 0.8rem; font-size: 0.74rem; color: var(--seal); word-break: break-all; line-height: 1.5; }
+
+  .pill {
+    display: inline-block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.2em 0.55em;
+    border-radius: 3px;
+    border: 1px solid;
+  }
+  .pill.grant { color: var(--grant); background: var(--grant-wash); border-color: var(--grant); }
+  .pill.deny  { color: var(--deny);  background: var(--deny-wash);  border-color: var(--deny); }
+  .pill.seal  { color: var(--seal);  background: var(--seal-wash);  border-color: var(--seal); }
+
+  ul.tight { padding-left: 1.15rem; }
+  ul.tight li { margin: 0.45rem 0; }
+  ul.tight li::marker { color: var(--seal); }
+
+  .rule-list { list-style: none; padding: 0; margin: 1.8rem 0; display: grid; gap: 0.7rem; }
+  .rule-list li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.85rem;
+    align-items: start;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--hairline);
+    font-size: var(--step--1);
+  }
+  .rule-list li:last-child { border-bottom: 0; }
+  .rule-list .n {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    color: var(--seal);
+    padding-top: 0.18em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  footer { padding: 3rem 0 4.5rem; color: var(--ink-faint); font-size: var(--step--1); }
+
+  /* ---- SVG animation, gated on visibility + reduced motion ---- */
+  .anim .flow { stroke-dasharray: 5 7; animation: march 1.5s linear infinite; }
+  @keyframes march { to { stroke-dashoffset: -24; } }
+
+  .anim .pulse-grant { animation: pulseG 3.4s ease-in-out infinite; }
+  @keyframes pulseG { 0%,100% { opacity: .28 } 42%,58% { opacity: 1 } }
+
+  .anim .tok { animation: travel 3.4s cubic-bezier(.5,0,.5,1) infinite; }
+  @keyframes travel {
+    0%   { transform: translateX(0);    opacity: 0 }
+    8%   { opacity: 1 }
+    38%  { transform: translateX(150px);opacity: 1 }
+    50%  { transform: translateX(150px);opacity: 1 }
+    88%  { transform: translateX(430px);opacity: 1 }
+    96%  { transform: translateX(430px);opacity: 0 }
+    100% { transform: translateX(430px);opacity: 0 }
+  }
+  .anim .tok-stop { animation: halt 3.4s cubic-bezier(.5,0,.5,1) infinite; }
+  @keyframes halt {
+    0%   { transform: translateX(0);    opacity: 0 }
+    8%   { opacity: 1 }
+    38%  { transform: translateX(150px);opacity: 1 }
+    56%  { transform: translateX(150px);opacity: 1 }
+    64%  { transform: translateX(138px);opacity: .5 }
+    72%  { transform: translateX(150px);opacity: 0 }
+    100% { transform: translateX(150px);opacity: 0 }
+  }
+  .anim .converge { animation: conv 4s ease-in-out infinite; }
+  @keyframes conv { 0%,18% { opacity: .25 } 46%,100% { opacity: 1 } }
+
+  .anim .layer-a { animation: peel 5s ease-in-out infinite; }
+  .anim .layer-b { animation: peel 5s ease-in-out infinite .5s; }
+  .anim .layer-c { animation: peelDenied 5s ease-in-out infinite 1s; }
+  @keyframes peel { 0%,12% { opacity: .2 } 30%,88% { opacity: 1 } 100% { opacity: .2 } }
+  @keyframes peelDenied { 0%,100% { opacity: .16 } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .anim .flow, .anim .pulse-grant, .anim .tok, .anim .tok-stop,
+    .anim .converge, .anim .layer-a, .anim .layer-b, .anim .layer-c {
+      animation: none !important;
+    }
+    .anim .tok { transform: translateX(430px); opacity: 1 }
+    .anim .tok-stop { transform: translateX(150px); opacity: 1 }
+    .anim .pulse-grant, .anim .converge, .anim .layer-a, .anim .layer-b { opacity: 1 }
+    .lit .reveal { animation: none; opacity: 1; transform: none; }
+    .reveal { opacity: 1; transform: none; }
+  }
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">rvm · capability-governed context</p>
+    <h1>A URI that grants nothing</h1>
+    <p class="lede measure">
+      <code>ruv://</code> names memories, resources, and skills across tenants and agents.
+      Holding the name gets you exactly zero authority — the check happens somewhere else,
+      and it happens first.
+    </p>
+
+    <div class="uri-plate" id="plate">
+      <div class="uri-line">
+        <span class="seg reveal"><span class="val">ruv://</span><span class="tag">scheme, exact</span></span>
+        <span class="seg reveal k"><span class="val">context.example</span><span class="tag">authority</span></span>
+        <span class="punct reveal">/</span>
+        <span class="seg reveal k"><span class="val">acme</span><span class="tag">tenant</span></span>
+        <span class="punct reveal">/</span>
+        <span class="seg reveal k"><span class="val">agent</span><span class="tag">subject kind</span></span>
+        <span class="punct reveal">/</span>
+        <span class="seg reveal k"><span class="val">researcher</span><span class="tag">subject id</span></span>
+        <span class="punct reveal">/</span>
+        <span class="seg reveal k"><span class="val">memory</span><span class="tag">collection</span></span>
+        <span class="punct reveal">/</span>
+        <span class="seg reveal"><span class="val">project-orion</span><span class="tag">path…</span></span>
+        <span class="seg reveal"><span class="val">?view=abstract</span><span class="tag">query</span></span>
+      </div>
+      <p class="uri-note">
+        One spelling per name. No percent-encoding, no fragments, no credentials, no port —
+        so policy scopes, witness records, signatures, and caches can never disagree about
+        whether two URIs are the same URI.
+      </p>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">01 · Introduction</p>
+    <h2>Names and rights are different things</h2>
+
+    <div class="measure">
+      <p>
+        Nearly every system you have used decides access the same way: you name a thing, the system
+        works out who you are, and then it decides. Your authority is <em>ambient</em> — it hangs in
+        the air around your identity and applies to everything you can name. Unix permissions work
+        this way. So do database row filters, S3 bucket policies, and almost every RBAC layer ever
+        shipped.
+      </p>
+
+      <p>
+        Ambient authority has a failure mode with a name, and it is nearly sixty years old: the
+        <strong>confused deputy</strong>. A component that holds more authority than its caller gets
+        talked into spending that authority on the caller's behalf. The deputy is not compromised
+        and not buggy in any local sense — it simply cannot tell which of its powers the request
+        was entitled to, because the request only carried a <em>name</em>, and names are free to
+        write down.
+      </p>
+
+      <p>
+        This gets sharply worse with agents. An agent is a deputy by construction: it holds tools,
+        credentials, and memory, and it takes instructions from text it just retrieved — text that
+        may have been authored by someone else's user. If naming a resource is sufficient to reach
+        it, then any string that reaches the model is a potential instruction to reach it.
+      </p>
+
+      <p class="claim">Parsing a URI grants no rights. Resolving a skill does not execute it.</p>
+
+      <p>
+        So <code>ruv://</code> splits the two things that ambient systems fuse. The URI is
+        <em>inert</em> — a pure name, canonical to a single spelling, useless on its own. The right
+        to act on it arrives separately, as a capability handle that was deliberately handed over,
+        can be narrowed on the way, and can be revoked. An untrusted request carries only that
+        handle, an operation, and the canonical URI. It has no actor field and no timestamp,
+        because those are precisely the fields a caller would want to forge; the actor is bound
+        immutably when the runtime is constructed, and there is no setter.
+      </p>
+
+      <p>
+        The practical difference is that a prompt-injected agent that talks itself into naming
+        another tenant's memory gets nothing. Not a filtered empty result — <em>nothing</em>, from
+        a backend that was never consulted.
+      </p>
+    </div>
+
+    <figure>
+      <div class="figframe">
+        <svg viewBox="0 0 620 236" role="img" aria-label="Left: ambient authority, where a name plus the deputy's identity produces a decision and the deputy can be confused into spending authority it holds. Right: capability, where the name is inert and a separately held handle carries the narrowed right.">
+          <defs>
+            <marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <text x="0" y="14" font-size="10" fill="#A63A4A" font-family="IBM Plex Mono, monospace" letter-spacing="1.2">AMBIENT AUTHORITY</text>
+          <text x="330" y="14" font-size="10" fill="#2E8B7A" font-family="IBM Plex Mono, monospace" letter-spacing="1.2">CAPABILITY</text>
+
+          <!-- ambient -->
+          <rect x="0" y="32" width="120" height="38" rx="4" fill="none" stroke="currentColor" opacity=".5"/>
+          <text x="60" y="56" font-size="11.5" text-anchor="middle" fill="currentColor">a name</text>
+
+          <line x1="60" y1="70" x2="60" y2="100" stroke="currentColor" opacity=".5" marker-end="url(#ar4)"/>
+
+          <rect x="0" y="104" width="264" height="58" rx="4" fill="none" stroke="#A63A4A" stroke-width="1.5"/>
+          <text x="132" y="128" font-size="12" text-anchor="middle" fill="#A63A4A" font-weight="600">deputy decides</text>
+          <text x="132" y="146" font-size="10" text-anchor="middle" fill="currentColor" opacity=".7">using authority it already holds</text>
+
+          <rect x="144" y="32" width="120" height="38" rx="4" fill="none" stroke="currentColor" opacity=".5"/>
+          <text x="204" y="56" font-size="11.5" text-anchor="middle" fill="currentColor">who you are</text>
+          <line x1="204" y1="70" x2="204" y2="100" stroke="currentColor" opacity=".5" marker-end="url(#ar4)"/>
+
+          <text x="132" y="184" font-size="10.5" text-anchor="middle" fill="#A63A4A">any name it can reach, it can reach</text>
+          <text x="132" y="202" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">confused deputy lives here</text>
+
+          <line x1="292" y1="26" x2="292" y2="216" stroke="currentColor" opacity=".22"/>
+
+          <!-- capability -->
+          <rect x="330" y="32" width="120" height="38" rx="4" fill="none" stroke="currentColor" opacity=".35" stroke-dasharray="4 4"/>
+          <text x="390" y="50" font-size="11.5" text-anchor="middle" fill="currentColor" opacity=".55">a name</text>
+          <text x="390" y="64" font-size="9" text-anchor="middle" fill="currentColor" opacity=".45">inert</text>
+
+          <rect x="470" y="32" width="140" height="38" rx="4" fill="none" stroke="#2E8B7A" stroke-width="1.5"/>
+          <text x="540" y="50" font-size="11.5" text-anchor="middle" fill="#2E8B7A" font-weight="600">a handle</text>
+          <text x="540" y="64" font-size="9" text-anchor="middle" fill="#2E8B7A" opacity=".8">handed over</text>
+
+          <line x1="540" y1="70" x2="540" y2="100" stroke="#2E8B7A" opacity=".7" marker-end="url(#ar4)"/>
+
+          <rect x="330" y="104" width="280" height="58" rx="4" fill="none" stroke="#2E8B7A" stroke-width="1.5"/>
+          <text x="470" y="128" font-size="12" text-anchor="middle" fill="#2E8B7A" font-weight="600">the handle carries the right</text>
+          <text x="470" y="146" font-size="10" text-anchor="middle" fill="currentColor" opacity=".7">narrowable · revocable · non-delegating</text>
+
+          <text x="470" y="184" font-size="10.5" text-anchor="middle" fill="#2E8B7A">naming it is not reaching it</text>
+          <text x="470" y="202" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">nothing to confuse the deputy with</text>
+        </svg>
+      </div>
+      <figcaption>
+        The difference is one arrow. On the left, identity supplies the authority and the name
+        selects the target — so a caller who can influence the name steers powers it was never
+        given. On the right the name selects nothing on its own; the handle is the authority, and
+        it only ever narrows.
+      </figcaption>
+    </figure>
+
+    <div class="tablescroll">
+      <table>
+        <thead>
+          <tr><th>Traditional approach</th><th>Its failure mode</th><th>What <code>ruv://</code> does</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Bearer token in the URL</td>
+            <td>The URL <em>is</em> the credential — it leaks through logs, referrers, screenshots, support tickets</td>
+            <td>Handles never appear in the URI or in ordinary logs</td>
+          </tr>
+          <tr>
+            <td>Check the ACL after resolving</td>
+            <td>Existence leaks through timing, cache state, and errors that differ by cause</td>
+            <td>Authorization precedes the resolver; four causes converge on one external shape</td>
+          </tr>
+          <tr>
+            <td><code>WHERE tenant_id = ?</code></td>
+            <td>One forgotten clause is a breach, and every query still traverses everyone's data</td>
+            <td>Separate physical index per exact scope — isolation is a different file, not a filter</td>
+          </tr>
+          <tr>
+            <td>Path-prefix multi-tenancy</td>
+            <td><code>/project</code> silently captures <code>/project-archive</code></td>
+            <td>Segment-wise matching; text prefixes are never used</td>
+          </tr>
+          <tr>
+            <td>Role-based access</td>
+            <td>Authority follows identity, so it is hard to attenuate and delegation is all-or-nothing</td>
+            <td>Attenuation is the default; no binding ever grants delegation rights</td>
+          </tr>
+          <tr>
+            <td>Soft-delete a row</td>
+            <td>The bytes remain, and "deleted" is a flag anything can ignore</td>
+            <td>Destroy the per-object key; the ciphertext becomes noise for everyone, including you</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="measure">
+      None of this is novel cryptography — capability systems date to the 1960s and the ideas here
+      are older than most of the stacks they replace. What is new is the pressure: an agent that
+      reads untrusted text and holds real tools is the confused deputy the literature warned about,
+      running in production, at scale, by design.
+    </p>
+
+    <div class="tablescroll">
+      <table>
+        <thead>
+          <tr><th>Component</th><th>Accepted values</th><th>Why it is closed</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>subject-kind</code></td><td><code>agent</code> · <code>user</code> · <code>service</code> · <code>team</code></td><td>A closed set cannot be widened by a config edit</td></tr>
+          <tr><td><code>collection</code></td><td><code>memory</code> · <code>resources</code> · <code>skills</code></td><td>Three kinds of thing, three retention stories</td></tr>
+          <tr><td><code>view</code></td><td><code>abstract</code> · <code>overview</code> · <code>content</code></td><td>Disclosure tiers, separately grantable</td></tr>
+          <tr><td><code>rev</code></td><td><code>sha256:</code> + exactly 64 lowercase hex</td><td>An immutable citation to a byte stream</td></tr>
+          <tr><td>Query</td><td>absent · <code>rev</code> · <code>view</code> · canonical <code>rev&amp;view</code></td><td>Four forms, so ordering can't fork the name</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="measure">
+      The limits are equally deliberate: 2,048 bytes for the whole URI, 253 for the authority,
+      63 per identifier, 128 per path segment, 32 segments, 1,024 bytes of path. A name that
+      cannot be unbounded cannot be used to exhaust the thing that stores it.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">02 · The mechanism</p>
+    <h2>Authorization runs before the backend, not after it</h2>
+    <p class="measure">
+      This is the whole design in one arrow. The resolver and the vector index are never
+      consulted on an unauthorized request — not consulted and filtered, <em>not consulted at all</em>.
+      A denied request stops at the boundary and produces a witness record, and the storage layer
+      never learns the name was asked for.
+    </p>
+
+    <figure>
+      <div class="figframe">
+        <svg viewBox="0 0 620 250" role="img" aria-label="A request passes a capability check and a witness log before reaching the resolver and an exact-scope shard; a denied request stops at the check and never reaches storage.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <!-- lanes -->
+          <text x="0" y="16" font-size="10" fill="currentColor" opacity=".62" font-family="IBM Plex Mono, monospace" letter-spacing="1.2">GRANTED</text>
+          <text x="0" y="166" font-size="10" fill="currentColor" opacity=".62" font-family="IBM Plex Mono, monospace" letter-spacing="1.2">REFUSED</text>
+
+          <!-- granted lane -->
+          <rect x="0" y="30" width="104" height="46" rx="4" fill="none" stroke="currentColor" opacity=".5"/>
+          <text x="52" y="58" font-size="12" text-anchor="middle" fill="currentColor">request</text>
+
+          <line x1="104" y1="53" x2="146" y2="53" stroke="currentColor" opacity=".55" marker-end="url(#ar)"/>
+
+          <rect x="150" y="24" width="112" height="58" rx="4" fill="none" stroke="#B8792B" stroke-width="1.6"/>
+          <text x="206" y="47" font-size="12" text-anchor="middle" fill="#B8792B" font-weight="600">authorize</text>
+          <text x="206" y="65" font-size="10.5" text-anchor="middle" fill="#B8792B" opacity=".85">+ witness</text>
+
+          <line x1="262" y1="53" x2="308" y2="53" stroke="currentColor" opacity=".55" marker-end="url(#ar)" class="flow"/>
+          <text x="285" y="44" font-size="9.5" text-anchor="middle" fill="currentColor" opacity=".6">scope</text>
+
+          <rect x="312" y="30" width="108" height="46" rx="4" fill="none" stroke="currentColor" opacity=".5"/>
+          <text x="366" y="58" font-size="12" text-anchor="middle" fill="currentColor">resolver</text>
+
+          <line x1="420" y1="53" x2="466" y2="53" stroke="currentColor" opacity=".55" marker-end="url(#ar)" class="flow"/>
+
+          <rect x="470" y="30" width="126" height="46" rx="4" fill="none" stroke="#2E8B7A" stroke-width="1.6"/>
+          <text x="533" y="50" font-size="12" text-anchor="middle" fill="#2E8B7A" font-weight="600">exact shard</text>
+          <text x="533" y="66" font-size="9.5" text-anchor="middle" fill="#2E8B7A" opacity=".85">acme only</text>
+
+          <circle cx="118" cy="53" r="5" fill="#2E8B7A" class="tok"/>
+
+          <!-- refused lane -->
+          <rect x="0" y="180" width="104" height="46" rx="4" fill="none" stroke="currentColor" opacity=".5"/>
+          <text x="52" y="208" font-size="12" text-anchor="middle" fill="currentColor">request</text>
+
+          <line x1="104" y1="203" x2="146" y2="203" stroke="currentColor" opacity=".55" marker-end="url(#ar)"/>
+
+          <rect x="150" y="174" width="112" height="58" rx="4" fill="none" stroke="#B8792B" stroke-width="1.6"/>
+          <text x="206" y="197" font-size="12" text-anchor="middle" fill="#B8792B" font-weight="600">authorize</text>
+          <text x="206" y="215" font-size="10.5" text-anchor="middle" fill="#B8792B" opacity=".85">+ witness</text>
+
+          <!-- the arrow that does not exist -->
+          <line x1="262" y1="203" x2="590" y2="203" stroke="currentColor" opacity=".18" stroke-dasharray="3 6"/>
+          <text x="426" y="195" font-size="10" text-anchor="middle" fill="#A63A4A" opacity=".9">no call is made</text>
+
+          <circle cx="118" cy="203" r="5" fill="#A63A4A" class="tok-stop"/>
+          <text x="206" y="248" font-size="10" text-anchor="middle" fill="#A63A4A">uniform error</text>
+        </svg>
+      </div>
+      <figcaption>
+        Both lanes reach the same gate. On the refused lane the dashed line is the call that is
+        never placed — the resolver and the shard are not asked, so nothing downstream can leak
+        existence through timing, cache state, or an error that differs from any other error.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">03 · Isolation</p>
+    <h2>Physical shards, not a filtered index</h2>
+    <p class="measure">
+      The tempting way to build multi-tenant retrieval is one vector index with a tenant field,
+      filtered after the search returns. That is a post-filter, and it means every query traverses
+      a graph built from every tenant's data — latency, result quality, and memory pressure all
+      become functions of objects the caller was never authorized to enumerate.
+    </p>
+
+    <figure>
+      <div class="figframe">
+        <svg viewBox="0 0 620 210" role="img" aria-label="Left: one shared index containing three tenants, searched then filtered. Right: three separate shards where only the authorized tenant's shard is searched at all.">
+          <defs>
+            <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <text x="0" y="14" font-size="10" fill="#A63A4A" font-family="IBM Plex Mono, monospace" letter-spacing="1.2">POST-FILTER</text>
+          <text x="330" y="14" font-size="10" fill="#2E8B7A" font-family="IBM Plex Mono, monospace" letter-spacing="1.2">EXACT SCOPE</text>
+
+          <!-- shared index -->
+          <rect x="0" y="30" width="230" height="112" rx="5" fill="none" stroke="#A63A4A" opacity=".65"/>
+          <text x="115" y="50" font-size="11" text-anchor="middle" fill="currentColor" opacity=".8">one graph, three tenants</text>
+          <circle cx="52"  cy="82" r="15" fill="none" stroke="currentColor" opacity=".55"/>
+          <circle cx="115" cy="82" r="15" fill="none" stroke="currentColor" opacity=".55"/>
+          <circle cx="178" cy="82" r="15" fill="none" stroke="currentColor" opacity=".55"/>
+          <text x="52"  y="86" font-size="10" text-anchor="middle" fill="currentColor">acme</text>
+          <text x="115" y="86" font-size="10" text-anchor="middle" fill="currentColor">borl</text>
+          <text x="178" y="86" font-size="10" text-anchor="middle" fill="currentColor">cyre</text>
+          <line x1="52" y1="97" x2="115" y2="97" stroke="currentColor" opacity=".4"/>
+          <line x1="115" y1="97" x2="178" y2="97" stroke="currentColor" opacity=".4"/>
+          <line x1="52" y1="97" x2="178" y2="112" stroke="currentColor" opacity=".4"/>
+          <text x="115" y="132" font-size="10" text-anchor="middle" fill="#A63A4A">traversal touches all three</text>
+
+          <line x1="115" y1="142" x2="115" y2="170" stroke="currentColor" opacity=".55" marker-end="url(#ar2)"/>
+          <text x="115" y="192" font-size="11" text-anchor="middle" fill="currentColor" opacity=".85">…then discard two</text>
+
+          <!-- divider -->
+          <line x1="278" y1="26" x2="278" y2="196" stroke="currentColor" opacity=".22"/>
+
+          <!-- exact scope -->
+          <rect x="330" y="30" width="84" height="62" rx="5" fill="none" stroke="#2E8B7A" stroke-width="1.7" class="pulse-grant"/>
+          <text x="372" y="58" font-size="11" text-anchor="middle" fill="#2E8B7A" font-weight="600">acme</text>
+          <text x="372" y="76" font-size="9.5" text-anchor="middle" fill="#2E8B7A" opacity=".8">searched</text>
+
+          <rect x="428" y="30" width="84" height="62" rx="5" fill="none" stroke="currentColor" opacity=".3"/>
+          <text x="470" y="58" font-size="11" text-anchor="middle" fill="currentColor" opacity=".45">borl</text>
+          <text x="470" y="76" font-size="9.5" text-anchor="middle" fill="currentColor" opacity=".4">untouched</text>
+
+          <rect x="526" y="30" width="84" height="62" rx="5" fill="none" stroke="currentColor" opacity=".3"/>
+          <text x="568" y="58" font-size="11" text-anchor="middle" fill="currentColor" opacity=".45">cyre</text>
+          <text x="568" y="76" font-size="9.5" text-anchor="middle" fill="currentColor" opacity=".4">untouched</text>
+
+          <line x1="372" y1="92" x2="372" y2="170" stroke="#2E8B7A" opacity=".7" marker-end="url(#ar2)" class="flow"/>
+          <text x="372" y="192" font-size="11" text-anchor="middle" fill="currentColor" opacity=".85">nothing to discard</text>
+        </svg>
+      </div>
+      <figcaption>
+        Each exact scope gets its own physical index. Selection happens on structured namespace
+        fields and path segments before any approximate-nearest-neighbour call, so a tenant's
+        query cost never depends on another tenant's corpus.
+      </figcaption>
+    </figure>
+
+    <p class="measure">
+      A detail worth stealing regardless of whether you use rvm: the scope is matched on
+      <em>path segments</em>, never on string prefix. <code>…/project</code> and
+      <code>…/project-archive</code> are siblings, not parent and child, and no amount of clever
+      naming makes one reachable from the other's grant.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">04 · Disclosure</p>
+    <h2>Three views, separately grantable</h2>
+    <p class="measure">
+      The same object can be exposed at three depths. These are capability-scoped representations,
+      not interchangeable filenames — a grant can permit the abstract while denying the content,
+      and an adapter must never silently broaden a grant to a larger representation.
+    </p>
+
+    <figure>
+      <div class="figframe">
+        <svg viewBox="0 0 620 176" role="img" aria-label="Abstract and overview views are granted and shown lit; the content view is denied and stays dark behind the grant boundary.">
+          <rect x="8" y="34" width="168" height="96" rx="5" fill="none" stroke="#2E8B7A" stroke-width="1.6" class="layer-a"/>
+          <text x="92" y="62" font-size="12.5" text-anchor="middle" fill="#2E8B7A" font-weight="600" class="layer-a">abstract</text>
+          <text x="92" y="82" font-size="10" text-anchor="middle" fill="currentColor" opacity=".7" class="layer-a">routing · relevance</text>
+          <text x="92" y="104" font-size="9.5" text-anchor="middle" fill="currentColor" opacity=".5" class="layer-a">smallest disclosure</text>
+
+          <rect x="196" y="34" width="168" height="96" rx="5" fill="none" stroke="#2E8B7A" stroke-width="1.6" class="layer-b"/>
+          <text x="280" y="62" font-size="12.5" text-anchor="middle" fill="#2E8B7A" font-weight="600" class="layer-b">overview</text>
+          <text x="280" y="82" font-size="10" text-anchor="middle" fill="currentColor" opacity=".7" class="layer-b">structure · relations</text>
+          <text x="280" y="104" font-size="9.5" text-anchor="middle" fill="currentColor" opacity=".5" class="layer-b">intermediate</text>
+
+          <!-- grant boundary -->
+          <line x1="392" y1="18" x2="392" y2="158" stroke="#B8792B" stroke-width="1.4" stroke-dasharray="4 5"/>
+          <text x="392" y="14" font-size="9.5" text-anchor="middle" fill="#B8792B" font-family="IBM Plex Mono, monospace" letter-spacing="1">GRANT ENDS</text>
+
+          <rect x="418" y="34" width="168" height="96" rx="5" fill="none" stroke="#A63A4A" stroke-width="1.4" stroke-dasharray="5 4" class="layer-c"/>
+          <text x="502" y="62" font-size="12.5" text-anchor="middle" fill="#A63A4A" font-weight="600" class="layer-c">content</text>
+          <text x="502" y="82" font-size="10" text-anchor="middle" fill="#A63A4A" opacity=".75" class="layer-c">full representation</text>
+          <text x="502" y="104" font-size="9.5" text-anchor="middle" fill="#A63A4A" opacity=".6" class="layer-c">denied</text>
+
+          <text x="92" y="152" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">Search requires overview · Read requires content</text>
+        </svg>
+      </div>
+      <figcaption>
+        When a view is derived, its provenance binds the source digest and the generation inputs —
+        so changing the source, the generator, the model, the prompt, or the policy changes the
+        derived commitment. A stale summary cannot masquerade as a current one.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">05 · Silence</p>
+    <h2>Four different failures, one indistinguishable answer</h2>
+    <p class="measure">
+      An error message is a side channel. If "forbidden" and "not found" differ, an unauthorized
+      caller can enumerate your namespace by reading the difference. So four distinct internal
+      outcomes converge on one external shape — unless the caller holds explicit audit authority,
+      in which case they get the real reason.
+    </p>
+
+    <figure>
+      <div class="figframe">
+        <svg viewBox="0 0 620 190" role="img" aria-label="Hidden, forbidden, missing and tombstoned outcomes all converge into a single identical external response.">
+          <defs>
+            <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" opacity=".6"/>
+            </marker>
+          </defs>
+
+          <text x="0" y="16" font-size="10" fill="currentColor" opacity=".6" font-family="IBM Plex Mono, monospace" letter-spacing="1.2">INTERNAL TRUTH</text>
+
+          <rect x="0" y="30" width="150" height="30" rx="4" fill="none" stroke="currentColor" opacity=".45"/>
+          <text x="75" y="50" font-size="11.5" text-anchor="middle" fill="currentColor">hidden</text>
+          <rect x="0" y="68" width="150" height="30" rx="4" fill="none" stroke="currentColor" opacity=".45"/>
+          <text x="75" y="88" font-size="11.5" text-anchor="middle" fill="currentColor">forbidden</text>
+          <rect x="0" y="106" width="150" height="30" rx="4" fill="none" stroke="currentColor" opacity=".45"/>
+          <text x="75" y="126" font-size="11.5" text-anchor="middle" fill="currentColor">missing</text>
+          <rect x="0" y="144" width="150" height="30" rx="4" fill="none" stroke="currentColor" opacity=".45"/>
+          <text x="75" y="164" font-size="11.5" text-anchor="middle" fill="currentColor">tombstoned</text>
+
+          <path d="M150 45 C 240 45, 250 102, 330 102" fill="none" stroke="currentColor" opacity=".45" marker-end="url(#ar3)"/>
+          <path d="M150 83 C 240 83, 250 102, 330 102" fill="none" stroke="currentColor" opacity=".45" marker-end="url(#ar3)"/>
+          <path d="M150 121 C 240 121, 250 102, 330 102" fill="none" stroke="currentColor" opacity=".45" marker-end="url(#ar3)"/>
+          <path d="M150 159 C 240 159, 250 102, 330 102" fill="none" stroke="currentColor" opacity=".45" marker-end="url(#ar3)"/>
+
+          <rect x="336" y="78" width="180" height="48" rx="5" fill="none" stroke="#B8792B" stroke-width="1.8" class="converge"/>
+          <text x="426" y="99" font-size="12.5" text-anchor="middle" fill="#B8792B" font-weight="600" class="converge">one external shape</text>
+          <text x="426" y="116" font-size="10" text-anchor="middle" fill="#B8792B" opacity=".8" class="converge">byte-identical</text>
+
+          <text x="426" y="150" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">audit authority sees the real reason</text>
+        </svg>
+      </div>
+      <figcaption>
+        Convergence has to be byte-identical to be worth anything: a differing header, a differing
+        length, or a measurably differing latency re-opens the channel the uniform body was meant
+        to close.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">06 · Practical applications</p>
+    <h2>What this is actually for</h2>
+
+    <div class="grid two">
+      <div class="card">
+        <h4>Per-agent memory that can't bleed</h4>
+        <p>
+          Give each agent its own subject scope. Two agents on the same host, in the same process,
+          searching the same collection name, never traverse each other's vectors — the isolation
+          is a different file, not a filter clause.
+        </p>
+        <code class="uri">ruv://context.example/acme/agent/researcher/memory</code>
+      </div>
+
+      <div class="card">
+        <h4>Team-shared skills, individually attenuated</h4>
+        <p>
+          Publish a skill once at team scope, then hand out grants that narrow it. A grant can
+          permit resolve-and-read while denying execute, and no binding ever confers the right to
+          delegate onward.
+        </p>
+        <code class="uri">ruv://context.example/acme/team/platform/skills/web-search</code>
+      </div>
+
+      <div class="card">
+        <h4>Reproducible citations in agent output</h4>
+        <p>
+          When an agent cites what it read, it cites a pinned revision, not a mutable alias. The
+          bytes under that revision are never overwritten, so a transcript stays checkable after
+          the alias has moved on six times.
+        </p>
+        <code class="uri">…/memory/project-orion?rev=sha256:2f9c…&amp;view=content</code>
+      </div>
+
+      <div class="card">
+        <h4>Right-to-erasure that actually erases</h4>
+        <p>
+          Every object gets a fresh AES-256-GCM data key bound to its tenant and its pinned URI.
+          Forgetting destroys the key rather than hunting down copies, and the durable purge
+          outbox means a crash mid-erase resumes rather than silently stopping.
+        </p>
+        <code class="uri">forget → key destroyed → ciphertext is noise</code>
+      </div>
+
+      <div class="card">
+        <h4>Cheap relevance triage</h4>
+        <p>
+          Route on <code>?view=abstract</code>. A planner deciding which of forty memories is worth
+          opening pays for forty abstracts, not forty full documents — and never holds authority
+          for the content it decided against.
+        </p>
+        <code class="uri">…/memory/project-orion?view=abstract</code>
+      </div>
+
+      <div class="card">
+        <h4>Audited tool surfaces</h4>
+        <p>
+          Expose the resolver through MCP or HTTP and every authorized call leaves a witness
+          observation stamped by a runtime-owned clock. The audit trail is not something the
+          caller can influence, because the caller never supplies the timestamp.
+        </p>
+        <code class="uri">MCP · TLS HTTP · certificate-validating CLI</code>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">07 · Exotic</p>
+    <h2>Uses the design permits but nobody asked for</h2>
+    <p class="measure">
+      Some of these are load-bearing ideas wearing an odd hat; a couple are genuinely strange.
+      All of them fall out of properties the namespace already guarantees.
+    </p>
+
+    <ul class="rule-list">
+      <li>
+        <span class="n">A</span>
+        <span><strong>Capability-scoped A/B testing.</strong> Two cohorts get grants to different
+        <code>view</code> tiers of the same object. Neither cohort can reach the other's
+        representation, and the provenance binding means you can prove afterward which bytes each
+        cohort actually saw.</span>
+      </li>
+      <li>
+        <span class="n">B</span>
+        <span><strong>Tombstones as a coordination primitive.</strong> Because tombstoned and
+        missing are externally indistinguishable, you can retire an object without telling
+        unauthorized observers that it ever existed — useful when the <em>existence</em> of a
+        record is itself the sensitive fact.</span>
+      </li>
+      <li>
+        <span class="n">C</span>
+        <span><strong>Time-travel debugging of agent reasoning.</strong> Pin every revision an
+        agent read during a run. Replaying the run later resolves the same pinned URIs and gets
+        byte-identical inputs, so a behaviour change is provably the model's, not the corpus's.</span>
+      </li>
+      <li>
+        <span class="n">D</span>
+        <span><strong>Adversarial context as a first-class case.</strong> The guidance is to treat
+        retrieved context as hostile input. That makes a deliberate red-team corpus just another
+        tenant — you can point a production agent at attacker-authored memories under a scope that
+        grants nothing else, and watch what it does.</span>
+      </li>
+      <li>
+        <span class="n">E</span>
+        <span><strong>Cryptographic erasure as a lease.</strong> Nothing requires the key to be
+        destroyed by a human. Destroy it on a timer and you have context with a genuine expiry —
+        not a flag that hides the row, but ciphertext that no longer decrypts for anyone,
+        including you.</span>
+      </li>
+      <li>
+        <span class="n">F</span>
+        <span><strong>Progressive disclosure as a cost control.</strong> Grant abstracts broadly
+        and content narrowly, then let economics do policy: the expensive representation is the
+        one that is hard to get authority for, so runaway retrieval is bounded by grants rather
+        than by a rate limiter someone forgot to configure.</span>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">08 · Usage guide</p>
+    <h2>Wiring it up without undoing it</h2>
+
+    <h3>Name something</h3>
+    <p class="measure">
+      Build the URI through the strict parser. A forgiving URL library will happily accept
+      <code>%2f</code>, a trailing slash, an uppercase tenant, or a <code>..</code> segment — all
+      of which are different names that would resolve to the same object, which is precisely the
+      ambiguity the canonical contract exists to prevent.
+    </p>
+
+<pre><code><span class="c-dim"># canonical — the only accepted v1 spelling</span>
+ruv://context.example/acme/agent/researcher/memory/project-orion
+
+<span class="c-dim"># all rejected by RuvUri, none of them equivalent</span>
+ruv://context.example/ACME/agent/researcher/memory        <span class="c-dim">InvalidTenant</span>
+ruv://context.example/acme/agent/researcher/memory/       <span class="c-dim">trailing slash</span>
+ruv://context.example/acme/agent/researcher/memory/..     <span class="c-dim">dot segment</span>
+ruv://context.example/acme/agent/researcher/memory//x     <span class="c-dim">empty segment</span>
+ruv://user:pw@context.example/acme/…                      <span class="c-dim">CredentialsNotAllowed</span>
+ruv://context.example:8443/acme/…                         <span class="c-dim">PortNotAllowed</span></code></pre>
+
+    <h3>Grant something</h3>
+    <p class="measure">
+      Capabilities are declared out of band in the artifact's metadata, across fifteen classes.
+      Two rules do most of the work, and both fail closed:
+    </p>
+
+    <ul class="tight measure">
+      <li><span class="pill deny">absent</span> &nbsp;An absent declaration denies <em>all fifteen</em> classes — silence is never permission.</li>
+      <li><span class="pill deny">encrypted</span> &nbsp;Encrypted metadata contributes no declaration, so you cannot smuggle a grant past the reader that cannot read it.</li>
+      <li><span class="pill seal">unrepresentable</span> &nbsp;A class that cannot be represented is refused rather than dropped — the failure is loud, not quiet.</li>
+      <li><span class="pill deny">delegation</span> &nbsp;No binding ever grants delegation rights. Onward delegation is a separate, explicit act.</li>
+    </ul>
+
+    <div class="tablescroll">
+      <table>
+        <thead><tr><th>Capability classes</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><code>Memory</code> · <code>Filesystem</code> · <code>Network</code> · <code>Model</code> · <code>Mcp</code></td><td>data and reach</td></tr>
+          <tr><td><code>Process</code> · <code>Clock</code> · <code>Randomness</code> · <code>Gpu</code></td><td>execution and entropy</td></tr>
+          <tr><td><code>Sensor</code> · <code>Display</code> · <code>Audio</code> · <code>Clipboard</code></td><td>the human's machine</td></tr>
+          <tr><td><code>PersistentState</code> · <code>InterAgentMessaging</code></td><td>durability and reach between agents</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Publish and advance</h3>
+    <p class="measure">
+      Bytes register under a pinned revision and are never overwritten. The alias is a separate,
+      mutable pointer that advances only by compare-and-swap — so two writers racing produce one
+      winner and one explicit failure, never a lost update. In a distributed alias store, that CAS
+      has to be genuinely linearizable; a last-write-wins store silently reintroduces the race.
+    </p>
+
+<pre><code><span class="c-key">put</span>     …/skills/web-search?rev=sha256:2f9c…   <span class="c-dim">immutable, pinned required</span>
+<span class="c-key">advance</span> …/skills/web-search  from=sha256:1a04…  <span class="c-dim">CAS on the current revision</span>
+                                 to=sha256:2f9c…
+<span class="c-ok">→</span> alias now points at 2f9c…; 1a04… still resolves forever</code></pre>
+
+    <h3>Before you expose it</h3>
+    <ol class="tight measure">
+      <li>Keep capability handles out of the URI <em>and</em> out of ordinary logs.</li>
+      <li>Parse with the strict parser, never a forgiving URL library.</li>
+      <li>Call the resolver only through the authorization-and-witness path — never directly.</li>
+      <li>Give each tenant a structured scope, not a text-prefix filter.</li>
+      <li>Return uniform external errors for forbidden and hidden objects.</li>
+      <li>Require pinned URIs for <code>Put</code> and <code>Execute</code>.</li>
+      <li>Enforce the 4,096-byte query, 64-result and 16 MiB ceilings <em>before</em> allocation.</li>
+      <li>Treat every retrieved byte as hostile input.</li>
+      <li>Verify derived-view provenance before serving it.</li>
+      <li>Drain receipts well before the witness ring can wrap.</li>
+    </ol>
+
+    <p class="claim">The bundled local key manager requires an explicit development opt-in. Production embeds its own KMS and purge providers.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">09 · Boundaries</p>
+    <h2>What it deliberately is not</h2>
+    <div class="measure">
+      <p>
+        The reference crate establishes namespace, integrity, capability, and evidence boundaries.
+        The hosted service adds encrypted persistence, cryptographic erasure, exact-scope indexes,
+        durable outboxes, and a transactional receipt drainer. Everything below is outside that
+        line, and saying so is part of the design:
+      </p>
+      <ul class="tight">
+        <li><strong>Not a transport.</strong> <code>ruv://</code> does not define how bytes move between hosts.</li>
+        <li><strong>Not a filesystem mount</strong>, and not an ambient authority system.</li>
+        <li><strong>Not semantic truth.</strong> A signed artifact is not automatically safe content.</li>
+        <li><strong>Not prompt-injection defense.</strong> That is why retrieved context is treated as hostile.</li>
+        <li><strong>Not federation.</strong> Network federation and deployment-specific KMS and replica adapters stay outside the generic implementation.</li>
+        <li><strong>Not a database.</strong> The in-memory reference resolver is bounded local state, not durable or distributed storage.</li>
+      </ul>
+      <p>
+        A capability system that overclaims is worse than one that underclaims, because the
+        overclaim is what gets quoted in the design review six months later.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap measure">
+    <p>
+      <code>rvm-context</code> defines the namespace, URI contract, capability binding, and witness
+      path. <code>rvm-context-service</code> adds the durable hosted implementation. Both are on
+      <code>main</code>; the capability class list, URI limits, and security checklist above are
+      taken from the shipped crates and user guide rather than paraphrased.
+    </p>
+  </div>
+</footer>
+
+<script>
+  // Reveal the dissected URI once, on load.
+  requestAnimationFrame(function () {
+    var plate = document.getElementById("plate");
+    if (plate) plate.classList.add("lit");
+  });
+
+  // Only animate figures while they are on screen — ambient motion off-screen
+  // is wasted work and, for a long page, a lot of it.
+  var figs = document.querySelectorAll(".figframe");
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        e.target.classList.toggle("anim", e.isIntersecting);
+      });
+    }, { rootMargin: "80px 0px" });
+    figs.forEach(function (f) { io.observe(f); });
+  } else {
+    figs.forEach(function (f) { f.classList.add("anim"); });
+  }
+</script>
+</body>
+</html>
