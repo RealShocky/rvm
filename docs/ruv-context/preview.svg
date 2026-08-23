@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="The ruv:// Namespace — a URI that grants nothing. A dissected ruv:// URI showing authority, tenant, subject kind, subject id, collection and path segments.">
+  <defs>
+    <linearGradient id="seal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2A2114"/>
+      <stop offset="1" stop-color="#12161F"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="#12161F"/>
+  <rect width="1200" height="630" fill="url(#seal)" opacity="0.9"/>
+
+  <!-- eyebrow -->
+  <text x="80" y="96" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" letter-spacing="3" fill="#D69A45">RVM · CAPABILITY-GOVERNED CONTEXT</text>
+
+  <!-- headline -->
+  <text x="80" y="196" font-family="Georgia, 'Times New Roman', serif" font-size="82" font-weight="600" fill="#E6E9F0">A URI that grants nothing</text>
+
+  <!-- lede -->
+  <text x="80" y="252" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="25" fill="#A8B0C2">Names memories, resources and skills across tenants and agents.</text>
+  <text x="80" y="288" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="25" fill="#A8B0C2">Holding the name gets you exactly zero authority.</text>
+
+  <!-- the dissected URI plate -->
+  <rect x="80" y="340" width="1040" height="176" rx="8" fill="#191E29" stroke="#2C3444"/>
+
+  <text x="112" y="404" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="30" font-weight="500">
+    <tspan fill="#767F93">ruv://</tspan><tspan fill="#D69A45">context.example</tspan><tspan fill="#767F93">/</tspan><tspan fill="#D69A45">acme</tspan><tspan fill="#767F93">/</tspan><tspan fill="#D69A45">agent</tspan><tspan fill="#767F93">/</tspan><tspan fill="#D69A45">researcher</tspan><tspan fill="#767F93">/</tspan><tspan fill="#D69A45">memory</tspan>
+  </text>
+
+  <!-- segment rules + labels -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" letter-spacing="1.6" fill="#767F93">
+    <line x1="112" y1="424" x2="212" y2="424" stroke="#2C3444"/>
+    <text x="112" y="446">SCHEME</text>
+
+    <line x1="220" y1="424" x2="470" y2="424" stroke="#D69A45" opacity="0.55"/>
+    <text x="220" y="446" fill="#D69A45">AUTHORITY</text>
+
+    <line x1="478" y1="424" x2="562" y2="424" stroke="#D69A45" opacity="0.55"/>
+    <text x="478" y="446" fill="#D69A45">TENANT</text>
+
+    <line x1="570" y1="424" x2="676" y2="424" stroke="#D69A45" opacity="0.55"/>
+    <text x="570" y="446" fill="#D69A45">SUBJECT KIND</text>
+
+    <line x1="684" y1="424" x2="862" y2="424" stroke="#D69A45" opacity="0.55"/>
+    <text x="684" y="446" fill="#D69A45">SUBJECT ID</text>
+
+    <line x1="870" y1="424" x2="990" y2="424" stroke="#D69A45" opacity="0.55"/>
+    <text x="870" y="446" fill="#D69A45">COLLECTION</text>
+  </g>
+
+  <text x="112" y="490" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="17" fill="#767F93">One spelling per name — no percent-encoding, no fragments, no credentials, no port.</text>
+
+  <!-- footer chips -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">
+    <rect x="80" y="556" width="196" height="34" rx="4" fill="none" stroke="#4FB8A0"/>
+    <text x="178" y="579" text-anchor="middle" fill="#4FB8A0">authorize first</text>
+
+    <rect x="292" y="556" width="212" height="34" rx="4" fill="none" stroke="#4FB8A0"/>
+    <text x="398" y="579" text-anchor="middle" fill="#4FB8A0">exact-scope shards</text>
+
+    <rect x="520" y="556" width="228" height="34" rx="4" fill="none" stroke="#D9697A"/>
+    <text x="634" y="579" text-anchor="middle" fill="#D9697A">uniform errors</text>
+
+    <rect x="764" y="556" width="240" height="34" rx="4" fill="none" stroke="#D69A45"/>
+    <text x="884" y="579" text-anchor="middle" fill="#D69A45">cryptographic forget</text>
+  </g>
+</svg>
