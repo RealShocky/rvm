@@ -1,0 +1,53 @@
+# Publish docs/ to GitHub Pages.
+#
+# This exists instead of the legacy branch-and-folder Pages source because that
+# builder checks out submodules recursively, and this repo cannot be recursively
+# checked out: the `cuda-wasm` submodule (ruvnet/ruv-FANN) contains a nested
+# submodule path, `cuda-wasm/archive/claude-code-flow/claude-code-flow`, that has
+# no URL entry in its own .gitmodules. Recursive checkout therefore fails with
+#
+#   fatal: No url found for submodule path '...' in .gitmodules
+#   fatal: Failed to recurse into submodule path 'cuda-wasm'
+#
+# which left every legacy Pages build erroring. Nothing under docs/ needs a
+# submodule, so this workflow checks out the superproject alone.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a deploy midway; queue instead.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
